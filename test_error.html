@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="tailwind.js"></script>
+  <script src="xlsx.full.min.js"></script>
+  <script src="jszip.min.js"></script>
+  <script src="FileSaver.min.js"></script>
+  <script src="lucide.js"></script>
+  <script src="bg_data.js"></script>
+  <script src="embedded_images.js"></script>
+</head>
+<body>
+<div id="out"></div>
+<script>
+window.onerror = function(msg, url, line) {
+  document.getElementById("out").innerText = "ERROR: " + msg + " at " + line;
+};
+try {
+  document.getElementById("out").innerText = "ALL SCRIPTS LOADED OK! Lucide: " + typeof lucide + ", XLSX: " + typeof XLSX;
+} catch(e) {
+  document.getElementById("out").innerText = "CATCH: " + e.message;
+}
+</script>
+</body>
+</html>

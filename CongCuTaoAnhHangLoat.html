@@ -1,0 +1,2443 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <title>Công Cụ Tạo Ảnh Hàng Loạt</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="tailwind.js"></script>
+  <script src="xlsx.full.min.js"></script>
+  <script src="jszip.min.js"></script>
+  <script src="FileSaver.min.js"></script>
+  <script src="lucide.js"></script>
+  <script src="bg_data.js"></script>
+  <script src="embedded_images.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Montserrat:wght@700;800;900&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .canvas-container { position: relative; user-select: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-purple-200">
+          <i data-lucide="layers" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-900 leading-tight">Batch Promo Image Generator</h1>
+          <p class="text-xs text-slate-500">Tự động tạo ảnh sản phẩm & quà tặng theo Layout/Ảnh nền mẫu</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button id="downloadSampleExcelBtn" class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-1.5 text-emerald-600"></i>
+          File Excel Mẫu
+        </button>
+        <button id="saveConfigBtn" class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 transition">
+          <i data-lucide="save" class="w-4 h-4 mr-1.5"></i>
+          Lưu Vị Trí (Layout)
+        </button>
+        <label class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 cursor-pointer transition">
+          <i data-lucide="upload" class="w-4 h-4 mr-1.5"></i>
+          Nạp Vị Trí
+          <input type="file" id="loadConfigInput" accept=".json" class="hidden">
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-5 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- Left Controls (4 Cols) -->
+    <div class="lg:col-span-4 space-y-4">
+
+      <!-- Step 1: Background Template Image -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center">
+            <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mr-1.5 text-xs">1</span>
+            Ảnh Nền Mẫu (Background)
+          </span>
+          <span id="bgStatusBadge" class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium">Đã nạp mẫu sẵn</span>
+        </div>
+
+        <label class="block border-2 border-dashed border-purple-200 hover:border-purple-500 rounded-xl p-3 text-center cursor-pointer transition bg-purple-50/20 hover:bg-purple-50/40 group">
+          <input type="file" id="bgInput" accept="image/*" class="hidden">
+          <div class="flex items-center justify-center space-x-2">
+            <i data-lucide="image-plus" class="w-5 h-5 text-purple-500"></i>
+            <span class="text-xs font-semibold text-slate-700 group-hover:text-purple-700">Tải ảnh nền mới của đợt này</span>
+          </div>
+        </label>
+        <p class="text-[11px] text-slate-400 leading-relaxed">Mặc định đã nạp mẫu tím Decorté. Mỗi đợt bạn chỉ cần click để thay ảnh nền mới.</p>
+      </div>
+
+      <!-- Step 2: Excel & Images -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center">
+            <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mr-1.5 text-xs">2</span>
+            Dữ liệu Excel & Thư viện ảnh
+          </span>
+          <span id="excelStatusBadge" class="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium hidden">0 dòng</span>
+        </div>
+
+        <!-- Excel File Upload -->
+        <label class="block border border-slate-200 hover:border-emerald-500 rounded-xl p-2.5 text-center cursor-pointer transition bg-slate-50 hover:bg-emerald-50/20 group">
+          <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" class="hidden">
+          <div class="flex items-center justify-center space-x-2">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i>
+            <span id="excelFileNameLabel" class="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">Chọn file Excel dữ liệu (.xlsx, .csv)</span>
+          </div>
+        </label>
+
+        <!-- Or Paste Excel Directly -->
+        <div class="border border-slate-200 rounded-xl p-2.5 bg-slate-50/50 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-slate-700 flex items-center">
+              <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 mr-1 text-purple-600"></i>
+              Hoặc Dán trực tiếp từ Excel:
+            </span>
+            <button id="btnLoadYourData" class="text-[10px] text-purple-700 font-bold bg-purple-100 hover:bg-purple-200 px-2 py-0.5 rounded transition">
+              ⚡ Nạp ngay dữ liệu Decorté của bạn
+            </button>
+          </div>
+          <div class="flex space-x-1.5">
+            <textarea id="pasteExcelInput" rows="2" placeholder="Copy các dòng trong Excel rồi dán (Ctrl+V / Cmd+V) vào đây..." class="w-full text-[11px] p-1.5 border border-slate-300 rounded-lg bg-white resize-none"></textarea>
+            <button id="btnApplyPastedExcel" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold whitespace-nowrap shadow-sm">
+              Nạp
+            </button>
+          </div>
+        </div>
+
+        <!-- Image Folder/Files Upload -->
+        <div class="grid grid-cols-2 gap-2">
+          <label class="border border-slate-200 hover:border-orange-500 rounded-xl p-2 text-center cursor-pointer transition bg-slate-50 hover:bg-orange-50/20 group flex flex-col items-center">
+            <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
+            <i data-lucide="folder-open" class="w-4 h-4 text-orange-500 mb-1"></i>
+            <span class="text-[11px] font-semibold text-slate-700">Nạp thư mục ảnh</span>
+          </label>
+          <label class="border border-slate-200 hover:border-orange-500 rounded-xl p-2 text-center cursor-pointer transition bg-slate-50 hover:bg-orange-50/20 group flex flex-col items-center">
+            <input type="file" id="filesInput" multiple accept="image/*" class="hidden">
+            <i data-lucide="images" class="w-4 h-4 text-orange-500 mb-1"></i>
+            <span class="text-[11px] font-semibold text-slate-700">Chọn nhiều ảnh lẻ</span>
+          </label>
+        </div>
+        <div class="flex justify-between items-center text-[11px] text-slate-500 pt-1">
+          <span id="imageCountBadge" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">✅ Đã nạp sẵn 16 ảnh test</span>
+          <button id="useDemoDataBtn" class="text-purple-600 hover:underline font-semibold hidden">Tải dữ liệu mẫu thử</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Layer Selection & Coordinate Adjuster -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center">
+            <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mr-1.5 text-xs">3</span>
+            Kéo thả & Căn chỉnh vị trí
+          </span>
+          <span class="text-[11px] text-slate-400">Chọn để sửa</span>
+        </div>
+
+        <!-- Quick Layout Preset Switcher -->
+        <div class="bg-purple-50/60 p-2.5 rounded-lg border border-purple-100 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-purple-900">Bố cục dàn quà tặng:</span>
+            <label class="text-[10px] text-purple-700 font-medium flex items-center cursor-pointer">
+              <input type="checkbox" id="autoAdaptGifts" checked class="mr-1 text-purple-600 rounded">
+              Tự đổi theo Excel
+            </label>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button type="button" id="btnLayout1Gift" class="py-1 px-1.5 text-[11px] font-semibold bg-white hover:bg-purple-100 text-slate-700 border border-slate-200 rounded transition text-center">
+              🎁 1 Quà
+            </button>
+            <button type="button" id="btnLayout2Gift" class="py-1 px-1.5 text-[11px] font-semibold bg-white hover:bg-purple-100 text-slate-700 border border-slate-200 rounded transition text-center">
+              🎁 2 Quà
+            </button>
+            <button type="button" id="btnLayout3Gift" class="py-1 px-1.5 text-[11px] font-semibold bg-purple-600 text-white rounded transition text-center">
+              🎁 3 Quà
+            </button>
+            <button type="button" id="btnLayout4Gift" class="py-1 px-1.5 text-[11px] font-semibold bg-white hover:bg-purple-100 text-slate-700 border border-slate-200 rounded transition text-center">
+              🎁 4 Quà
+            </button>
+          </div>
+
+          <!-- Quick Podium Ground Baseline Tuner -->
+          <div class="pt-1.5 border-t border-purple-200/60 space-y-1.5 text-[11px]">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-purple-950 flex items-center" title="Điều chỉnh độ cao đáy của quà tặng khi đổi ảnh nền khác">
+                <span>Mặt bục quà (Y):</span>
+              </span>
+              <div class="flex items-center space-x-1.5">
+                <input type="range" id="podiumBaselineSlider" min="700" max="950" value="865" class="w-24 h-1.5 accent-purple-600 cursor-pointer">
+                <input type="number" id="podiumBaselineInput" value="865" class="w-14 text-center font-bold text-purple-900 border border-purple-300 rounded px-1 py-0.5 bg-white text-xs">
+                <span class="text-[10px] text-purple-500 font-semibold">px</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-purple-950 flex items-center" title="Khoảng cách ngang giữa các món quà khi hiển thị (tự tính vị trí đẹp và đều nhau)">
+                <span>Khoảng cách quà (X):</span>
+              </span>
+              <div class="flex items-center space-x-1.5">
+                <input type="range" id="giftSpacingSlider" min="0" max="80" value="15" class="w-24 h-1.5 accent-purple-600 cursor-pointer">
+                <input type="number" id="giftSpacingInput" value="15" min="0" max="80" class="w-14 text-center font-bold text-purple-900 border border-purple-300 rounded px-1 py-0.5 bg-white text-xs">
+                <span class="text-[10px] text-purple-500 font-semibold">px</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-purple-800">
+              <label class="flex items-center cursor-pointer font-medium" title="Tự động gắn Quy cách (vd: 35g) bám sát ngay dưới chân sản phẩm, không bị xa khi sản phẩm nhỏ">
+                <input type="checkbox" id="autoAttachSpec" checked class="mr-1 text-purple-600 rounded">
+                Gắn Quy cách SP bám sát chân chai/hộp
+              </label>
+              <div class="flex items-center space-x-1">
+                <span>Cách:</span>
+                <input type="number" id="specGapInput" value="20" min="5" max="80" class="w-10 text-center font-bold border border-purple-200 rounded px-0.5 py-0.2 bg-white text-[10px]">
+                <span>px</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-purple-800 pt-0.5 border-t border-purple-200/40">
+              <label class="flex items-center cursor-pointer font-medium" title="Tự động tính đỉnh ảnh quà tặng để kéo chữ Tên + Quy cách quà bám sát ngay trên đầu quà, không bị bay xa với các hũ/chai quà lùn">
+                <input type="checkbox" id="autoAttachGifts" checked class="mr-1 text-purple-600 rounded">
+                Chữ quà tặng tự bám sát đỉnh từng món quà
+              </label>
+              <div class="flex items-center space-x-1">
+                <span>Cách:</span>
+                <input type="number" id="giftTextGapInput" value="12" min="2" max="50" class="w-10 text-center font-bold border border-purple-200 rounded px-0.5 py-0.2 bg-white text-[10px]">
+                <span>px</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-purple-800 pt-0.5 border-t border-purple-200/40">
+              <label class="flex items-center cursor-pointer font-medium" title="Tự động lọc bỏ phông nền trắng của ảnh JPG/PNG sản phẩm hoặc quà tặng để hòa vào nền banner trong suốt">
+                <input type="checkbox" id="autoRemoveWhiteBg" class="mr-1 text-purple-600 rounded">
+                ⚡ Tự động tách nền trắng (Ảnh SP & Quà)
+              </label>
+              <div class="flex items-center space-x-1" title="Độ nhạy khử màu trắng (giá trị 200 - 250, mặc định 235)">
+                <span>Ngưỡng:</span>
+                <input type="number" id="whiteBgTolerance" value="235" min="180" max="254" class="w-10 text-center font-bold border border-purple-200 rounded px-0.5 py-0.2 bg-white text-[10px]">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-semibold text-slate-600 block mb-1">Chọn đối tượng cần căn chỉnh:</label>
+          <select id="selectedLayer" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-medium">
+            <optgroup label="Sản phẩm chính">
+              <option value="mainProdImg">Ảnh Sản phẩm chính</option>
+              <option value="mainProdName">Tên Sản phẩm chính (Chữ)</option>
+              <option value="mainProdSpec">Quy cách Sản phẩm chính (Vd: 50ML)</option>
+            </optgroup>
+            <optgroup label="Tổng quà tặng">
+              <option value="giftTotalBanner">Tổng giá trị quà (Vd: 2,998,000đ)</option>
+            </optgroup>
+            <optgroup label="Quà tặng 1">
+              <option value="gift1Img">Ảnh Quà 1</option>
+              <option value="gift1Name">Tên Quà 1 (Chữ)</option>
+              <option value="gift1Spec">Quy cách Quà 1 (Chữ)</option>
+            </optgroup>
+            <optgroup label="Quà tặng 2">
+              <option value="gift2Img">Ảnh Quà 2</option>
+              <option value="gift2Name">Tên Quà 2 (Chữ)</option>
+              <option value="gift2Spec">Quy cách Quà 2 (Chữ)</option>
+            </optgroup>
+            <optgroup label="Quà tặng 3">
+              <option value="gift3Img">Ảnh Quà 3</option>
+              <option value="gift3Name">Tên Quà 3 (Chữ)</option>
+              <option value="gift3Spec">Quy cách Quà 3 (Chữ)</option>
+            </optgroup>
+            <optgroup label="Quà tặng 4">
+              <option value="gift4Img">Ảnh Quà 4</option>
+              <option value="gift4Name">Tên Quà 4 (Chữ)</option>
+              <option value="gift4Spec">Quy cách Quà 4 (Chữ)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Coordinates numerical fine-tuning -->
+        <div class="grid grid-cols-4 gap-2 text-[11px]">
+          <div>
+            <label class="text-slate-500 block mb-0.5">X:</label>
+            <input type="number" id="propX" class="w-full border border-slate-300 rounded p-1">
+          </div>
+          <div>
+            <label class="text-slate-500 block mb-0.5">Y:</label>
+            <input type="number" id="propY" class="w-full border border-slate-300 rounded p-1">
+          </div>
+          <div>
+            <label class="text-slate-500 block mb-0.5">Rộng (W):</label>
+            <input type="number" id="propW" class="w-full border border-slate-300 rounded p-1">
+          </div>
+          <div>
+            <label class="text-slate-500 block mb-0.5">Cao (H):</label>
+            <input type="number" id="propH" class="w-full border border-slate-300 rounded p-1">
+          </div>
+        </div>
+
+        <!-- Image tuning & Manual image picker for selected Image element -->
+        <div id="imageProps" class="p-2.5 rounded-lg bg-orange-50/70 border border-orange-200 space-y-1.5 hidden">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="font-bold text-orange-900 flex items-center">
+              <span id="selectedImageLabel">Ảnh đối tượng đang chọn</span>
+            </span>
+            <span id="imageSourceStatus" class="text-[10px] text-orange-700 font-medium">Tự động từ Excel</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <label class="flex-1 py-1 px-2 bg-white hover:bg-orange-100 border border-orange-300 rounded text-center cursor-pointer text-[10px] font-bold text-orange-800 transition truncate shadow-xs">
+              <input type="file" id="propImageFileInput" accept="image/*" class="hidden">
+              <span id="propImageFileName">📷 Nạp ảnh riêng cho đối tượng này</span>
+            </label>
+            <button type="button" id="propClearOverrideBtn" class="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded text-[10px] font-semibold transition" title="Xóa ảnh riêng, quay lại dùng ảnh tự động từ Excel">
+              ✕ Bỏ
+            </button>
+          </div>
+          <p class="text-[10px] text-orange-600 leading-tight">Mẹo: Bạn cũng có thể click đúp chuột trực tiếp vào khung ảnh trên màn hình để chọn ảnh từ máy!</p>
+        </div>
+
+        <!-- Typography tuning for Text elements -->
+        <div id="typographyProps" class="space-y-1.5 pt-1">
+          <div class="grid grid-cols-3 gap-2 text-[11px]">
+            <div>
+              <label class="text-slate-500 block mb-0.5">Cỡ chữ:</label>
+              <input type="number" id="propFontSize" class="w-full border border-slate-300 rounded p-1">
+            </div>
+            <div>
+              <label class="text-slate-500 block mb-0.5">Màu chữ:</label>
+              <input type="color" id="propColor" class="w-full h-7 border border-slate-300 rounded p-0.5 bg-white">
+            </div>
+            <div>
+              <label class="text-slate-500 block mb-0.5">Căn lề:</label>
+              <select id="propAlign" class="w-full border border-slate-300 rounded p-1 bg-white">
+                <option value="center">Giữa</option>
+                <option value="left">Trái</option>
+                <option value="right">Phải</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <label class="text-slate-500 block mb-0.5 font-semibold">Phông chữ:</label>
+              <select id="propFontFamily" class="w-full border border-slate-300 rounded p-1 bg-white text-[11px] font-medium">
+                <option value="'Plus Jakarta Sans', sans-serif">Plus Jakarta Sans</option>
+                <option value="'Montserrat', sans-serif">Montserrat</option>
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="'Roboto', sans-serif">Roboto</option>
+                <option value="'Arial', sans-serif">Arial</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-purple-700 font-bold block mb-0.5" title="Chọn file font (.ttf, .otf, .woff, .woff2) từ máy của bạn">Nạp font từ máy:</label>
+              <label class="w-full border border-purple-300 hover:border-purple-600 bg-purple-50 hover:bg-purple-100 rounded p-1 text-center cursor-pointer block text-[10px] text-purple-800 font-bold truncate transition shadow-sm">
+                <input type="file" id="customFontInput" accept=".ttf,.otf,.woff,.woff2" class="hidden">
+                <span id="customFontNameLabel">📁 Chọn file font (.ttf/.otf)</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-purple-700 pt-0.5">
+            <label class="flex items-center cursor-pointer font-medium hover:text-purple-900" title="Áp dụng phông chữ đang chọn cho mọi ô chữ: Tên SP, Quy cách, Tên quà tặng, Tổng giá trị">
+              <input type="checkbox" id="applyFontToAll" class="mr-1 rounded text-purple-600">
+              Đổi font này cho TẤT CẢ chữ
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <label class="inline-flex items-center text-[11px] font-medium text-slate-600 cursor-pointer">
+            <input type="checkbox" id="propVisible" class="mr-1.5 rounded text-purple-600">
+            Hiển thị phần tử này
+          </label>
+          <button id="resetLayoutBtn" class="text-[11px] text-rose-500 hover:underline">Khôi phục mặc định</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Batch Export -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <button id="batchExportBtn" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-purple-200 transition flex items-center justify-center space-x-2">
+          <i data-lucide="download-cloud" class="w-5 h-5"></i>
+          <span>Xuất tất cả ảnh (Tải file ZIP)</span>
+        </button>
+
+        <div id="exportProgressWrapper" class="hidden space-y-1.5">
+          <div class="flex justify-between text-xs text-slate-500 font-medium">
+            <span id="exportProgressText">Đang xử lý: 0/0</span>
+            <span id="exportProgressPercent">0%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div id="exportProgressBar" class="h-full bg-purple-600 transition-all duration-150 w-0"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Preview & Data (8 Cols) -->
+    <div class="lg:col-span-8 flex flex-col space-y-4">
+
+      <!-- Interactive Canvas Preview -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-800">Khung thiết kế tương tác</span>
+            <span class="text-[11px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-full">💡 Kéo thả trực tiếp bằng chuột</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="prevRowBtn" class="p-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600" title="Dòng trước">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <span id="currentRowIndex" class="text-xs font-semibold text-slate-700">1 / 1</span>
+            <button id="nextRowBtn" class="p-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600" title="Dòng sau">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+            <button id="downloadCurrentBtn" class="ml-2 inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition">
+              <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i> Tải ảnh này
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Container with Drag & Drop Visual Box -->
+        <div class="flex-1 flex items-center justify-center bg-slate-900/5 rounded-xl p-3 overflow-hidden border border-slate-200 relative">
+          <div class="canvas-container relative cursor-default" id="canvasContainer">
+            <canvas id="previewCanvas" width="1024" height="1024" class="max-h-[580px] w-auto aspect-square rounded-lg shadow-xl bg-white"></canvas>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2 text-center">Bấm chọn và kéo chuột trực tiếp trên khung ảnh để di chuyển vị trí sản phẩm / quà tặng / chữ.</p>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Danh sách dữ liệu từ Excel</h3>
+            <span id="tableRowsCount" class="text-xs text-slate-400">0 dòng</span>
+          </div>
+          <!-- Quick Search Bar -->
+          <div class="relative w-64 max-w-full">
+            <input type="text" id="tableSearchInput" placeholder="🔍 Tìm tên SP, SKU, Quà tặng..." class="w-full text-xs bg-slate-50 border border-slate-200 focus:bg-white focus:border-purple-500 rounded-lg pl-2.5 pr-7 py-1 outline-none transition">
+            <button id="clearSearchBtn" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs px-1 font-bold">✕</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto max-h-44 custom-scrollbar border border-slate-200 rounded-lg">
+          <table class="min-w-full divide-y divide-slate-200 text-xs">
+            <thead class="bg-slate-50 sticky top-0">
+              <tr>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">STT</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Tên SP</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Quy cách</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Tổng quà tặng</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Quà 1</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Quà 2</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Quà 3</th>
+                <th class="px-2.5 py-1.5 text-left font-semibold text-slate-500">Quà 4</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-100 bg-white">
+              <tr>
+                <td colspan="8" class="px-3 py-6 text-center text-slate-400">Chưa có dữ liệu. Vui lòng tải file Excel hoặc bấm "Tải dữ liệu mẫu thử"</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    // Default template coordinates based on HannahOlala x Decorté Sample Image (1024 x 1024)
+    const DEFAULT_LAYOUT = {
+      // Main Product (Grounded on left glass podium at Y = 705)
+      mainProdImg: { label: "Ảnh Sản phẩm chính", type: "image", x: 95, y: 310, w: 310, h: 395, visible: true },
+      mainProdName: { label: "Tên Sản phẩm chính", type: "text", x: 512, y: 220, w: 920, h: 80, fontSize: 26, fontWeight: "800", color: "#111827", align: "center", maxLines: 5, maxWordsPerLine: 20, visible: true },
+      mainProdSpec: { label: "Quy cách SP chính", type: "text", x: 250, y: 740, w: 120, h: 30, fontSize: 20, fontWeight: "800", color: "#7C3AED", align: "center", maxLines: 1, visible: true },
+
+      // Total Gift Price Banner
+      giftTotalBanner: { label: "Tổng giá trị quà", type: "text", x: 635, y: 418, w: 230, h: 40, fontSize: 34, fontWeight: "900", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+      
+      // Default Gift Placeholders (Grounded to right glass cube surface Y = 860)
+      gift1Img: { label: "Ảnh Quà 1", type: "image", x: 520, y: 575, w: 125, h: 285, visible: true },
+      gift1Name: { label: "Tên Quà 1", type: "text", x: 582, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+      gift1Spec: { label: "Quy cách Quà 1", type: "text", x: 582, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+      gift2Img: { label: "Ảnh Quà 2", type: "image", x: 665, y: 575, w: 135, h: 285, visible: true },
+      gift2Name: { label: "Tên Quà 2", type: "text", x: 732, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+      gift2Spec: { label: "Quy cách Quà 2", type: "text", x: 732, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+      gift3Img: { label: "Ảnh Quà 3", type: "image", x: 815, y: 575, w: 135, h: 285, visible: true },
+      gift3Name: { label: "Tên Quà 3", type: "text", x: 882, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+      gift3Spec: { label: "Quy cách Quà 3", type: "text", x: 882, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+      gift4Img: { label: "Ảnh Quà 4", type: "image", x: 845, y: 575, w: 105, h: 285, visible: false },
+      gift4Name: { label: "Tên Quà 4", type: "text", x: 897, y: 468, w: 110, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+      gift4Spec: { label: "Quy cách Quà 4", type: "text", x: 897, y: 546, w: 110, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false }
+    };
+
+    // Presets based on number of gifts (All anchored to bottom baseline y=860)
+    const GIFT_PRESETS = {
+      4: {
+        gift1Img: { label: "Ảnh Quà 1", type: "image", x: 500, y: 575, w: 105, h: 285, visible: true },
+        gift1Name: { label: "Tên Quà 1", type: "text", x: 552, y: 468, w: 105, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift1Spec: { label: "Quy cách Quà 1", type: "text", x: 552, y: 546, w: 105, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift2Img: { label: "Ảnh Quà 2", type: "image", x: 615, y: 575, w: 105, h: 285, visible: true },
+        gift2Name: { label: "Tên Quà 2", type: "text", x: 667, y: 468, w: 105, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift2Spec: { label: "Quy cách Quà 2", type: "text", x: 667, y: 546, w: 105, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift3Img: { label: "Ảnh Quà 3", type: "image", x: 730, y: 575, w: 105, h: 285, visible: true },
+        gift3Name: { label: "Tên Quà 3", type: "text", x: 782, y: 468, w: 105, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift3Spec: { label: "Quy cách Quà 3", type: "text", x: 782, y: 546, w: 105, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift4Img: { label: "Ảnh Quà 4", type: "image", x: 845, y: 575, w: 105, h: 285, visible: true },
+        gift4Name: { label: "Tên Quà 4", type: "text", x: 897, y: 468, w: 105, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift4Spec: { label: "Quy cách Quà 4", type: "text", x: 897, y: 546, w: 105, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+      },
+      3: {
+        gift1Img: { label: "Ảnh Quà 1", type: "image", x: 520, y: 575, w: 125, h: 285, visible: true },
+        gift1Name: { label: "Tên Quà 1", type: "text", x: 582, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift1Spec: { label: "Quy cách Quà 1", type: "text", x: 582, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift2Img: { label: "Ảnh Quà 2", type: "image", x: 665, y: 575, w: 135, h: 285, visible: true },
+        gift2Name: { label: "Tên Quà 2", type: "text", x: 732, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift2Spec: { label: "Quy cách Quà 2", type: "text", x: 732, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift3Img: { label: "Ảnh Quà 3", type: "image", x: 815, y: 575, w: 135, h: 285, visible: true },
+        gift3Name: { label: "Tên Quà 3", type: "text", x: 882, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift3Spec: { label: "Quy cách Quà 3", type: "text", x: 882, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift4Img: { label: "Ảnh Quà 4", type: "image", x: 845, y: 575, w: 105, h: 285, visible: false },
+        gift4Name: { label: "Tên Quà 4", type: "text", x: 897, y: 468, w: 110, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift4Spec: { label: "Quy cách Quà 4", type: "text", x: 897, y: 546, w: 110, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+      },
+      2: {
+        gift1Img: { label: "Ảnh Quà 1", type: "image", x: 590, y: 575, w: 145, h: 285, visible: true },
+        gift1Name: { label: "Tên Quà 1", type: "text", x: 662, y: 465, w: 155, h: 50, fontSize: 12, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift1Spec: { label: "Quy cách Quà 1", type: "text", x: 662, y: 546, w: 155, h: 20, fontSize: 13, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift2Img: { label: "Ảnh Quà 2", type: "image", x: 755, y: 575, w: 145, h: 285, visible: true },
+        gift2Name: { label: "Tên Quà 2", type: "text", x: 827, y: 465, w: 155, h: 50, fontSize: 12, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift2Spec: { label: "Quy cách Quà 2", type: "text", x: 827, y: 546, w: 155, h: 20, fontSize: 13, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift3Img: { label: "Ảnh Quà 3", type: "image", x: 815, y: 575, w: 135, h: 285, visible: false },
+        gift3Name: { label: "Tên Quà 3", type: "text", x: 882, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift3Spec: { label: "Quy cách Quà 3", type: "text", x: 882, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+
+        gift4Img: { label: "Ảnh Quà 4", type: "image", x: 845, y: 575, w: 105, h: 285, visible: false },
+        gift4Name: { label: "Tên Quà 4", type: "text", x: 897, y: 468, w: 110, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift4Spec: { label: "Quy cách Quà 4", type: "text", x: 897, y: 546, w: 110, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+      },
+      1: {
+        gift1Img: { label: "Ảnh Quà 1", type: "image", x: 655, y: 570, w: 180, h: 290, visible: true },
+        gift1Name: { label: "Tên Quà 1", type: "text", x: 745, y: 465, w: 230, h: 50, fontSize: 13, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: true },
+        gift1Spec: { label: "Quy cách Quà 1", type: "text", x: 745, y: 544, w: 230, h: 20, fontSize: 14, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
+
+        gift2Img: { label: "Ảnh Quà 2", type: "image", x: 740, y: 575, w: 160, h: 285, visible: false },
+        gift2Name: { label: "Tên Quà 2", type: "text", x: 820, y: 465, w: 165, h: 50, fontSize: 12, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift2Spec: { label: "Quy cách Quà 2", type: "text", x: 820, y: 546, w: 165, h: 20, fontSize: 13, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+
+        gift3Img: { label: "Ảnh Quà 3", type: "image", x: 815, y: 575, w: 135, h: 285, visible: false },
+        gift3Name: { label: "Tên Quà 3", type: "text", x: 882, y: 468, w: 135, h: 48, fontSize: 11, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift3Spec: { label: "Quy cách Quà 3", type: "text", x: 882, y: 546, w: 135, h: 20, fontSize: 12, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+
+        gift4Img: { label: "Ảnh Quà 4", type: "image", x: 845, y: 575, w: 105, h: 285, visible: false },
+        gift4Name: { label: "Tên Quà 4", type: "text", x: 897, y: 468, w: 110, h: 48, fontSize: 10, fontWeight: "700", color: "#7C3AED", align: "center", maxLines: 5, visible: false },
+        gift4Spec: { label: "Quy cách Quà 4", type: "text", x: 897, y: 546, w: 110, h: 20, fontSize: 11, fontWeight: "800", color: "#6D28D9", align: "center", maxLines: 1, visible: false },
+      }
+    };
+
+    let layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+    let bgImage = new Image();
+    if (typeof DEFAULT_BG_B64 !== 'undefined' && DEFAULT_BG_B64) {
+      bgImage.src = DEFAULT_BG_B64;
+    } else {
+      bgImage.src = 'sample_template.jpg';
+    }
+
+    let excelRows = [];
+    let imageMap = new Map();
+    let imageCache = new Map();
+    let manualImageOverrides = new Map(); // key: "rowIndex_key" or "key" -> Image element / object
+    let currentIndex = 0;
+    let selectedKey = 'mainProdImg';
+
+    // Dragging state
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragItemStartX = 0;
+    let dragItemStartY = 0;
+
+    // DOM Elements
+    const previewCanvas = document.getElementById('previewCanvas');
+    const ctx = previewCanvas.getContext('2d');
+    const selectedLayer = document.getElementById('selectedLayer');
+    const propX = document.getElementById('propX');
+    const propY = document.getElementById('propY');
+    const propW = document.getElementById('propW');
+    const propH = document.getElementById('propH');
+    const propFontSize = document.getElementById('propFontSize');
+    const propColor = document.getElementById('propColor');
+    const propAlign = document.getElementById('propAlign');
+    const propVisible = document.getElementById('propVisible');
+    const typographyProps = document.getElementById('typographyProps');
+    const imageProps = document.getElementById('imageProps');
+    const propImageFileInput = document.getElementById('propImageFileInput');
+    const propImageFileName = document.getElementById('propImageFileName');
+    const propClearOverrideBtn = document.getElementById('propClearOverrideBtn');
+    const imageSourceStatus = document.getElementById('imageSourceStatus');
+    const applyFontToAllCheckbox = document.getElementById('applyFontToAll');
+    const bgInput = document.getElementById('bgInput');
+    const excelInput = document.getElementById('excelInput');
+    const folderInput = document.getElementById('folderInput');
+    const filesInput = document.getElementById('filesInput');
+    const prevRowBtn = document.getElementById('prevRowBtn');
+    const nextRowBtn = document.getElementById('nextRowBtn');
+    const currentRowIndex = document.getElementById('currentRowIndex');
+    const downloadCurrentBtn = document.getElementById('downloadCurrentBtn');
+    const batchExportBtn = document.getElementById('batchExportBtn');
+    const saveConfigBtn = document.getElementById('saveConfigBtn');
+    const loadConfigInput = document.getElementById('loadConfigInput');
+    const resetLayoutBtn = document.getElementById('resetLayoutBtn');
+    const useDemoDataBtn = document.getElementById('useDemoDataBtn');
+    const downloadSampleExcelBtn = document.getElementById('downloadSampleExcelBtn');
+
+    // Load background image
+    bgImage.onload = () => {
+      // Sync canvas dimensions to background template
+      if (bgImage.width > 0 && bgImage.height > 0) {
+        previewCanvas.width = bgImage.width;
+        previewCanvas.height = bgImage.height;
+      }
+      renderCanvas();
+    };
+
+    bgInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        bgImage = new Image();
+        bgImage.onload = () => {
+          previewCanvas.width = bgImage.width;
+          previewCanvas.height = bgImage.height;
+          document.getElementById('bgStatusBadge').textContent = 'Ảnh nền tùy chỉnh';
+          renderCanvas();
+        };
+        bgImage.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    const propFontFamily = document.getElementById('propFontFamily');
+    const customFontInput = document.getElementById('customFontInput');
+    const customFontNameLabel = document.getElementById('customFontNameLabel');
+
+    // Handle Custom Font File Loading via FontFace API & FileReader
+    let loadedCustomFontCount = 0;
+    if (customFontInput) {
+      customFontInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Clean font name (alphanumeric and underscores only for safe CSS font-family)
+        const cleanBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+        const fontName = `Font_${cleanBaseName}_${++loadedCustomFontCount}`;
+
+        try {
+          const fontData = await file.arrayBuffer();
+          const fontFace = new FontFace(fontName, fontData);
+          const loadedFace = await fontFace.load();
+          document.fonts.add(loadedFace);
+
+          // Also inject @font-face style rule as fallback for canvas rendering engines
+          const fontBlob = new Blob([fontData]);
+          const fontUrl = URL.createObjectURL(fontBlob);
+          const styleEl = document.createElement('style');
+          styleEl.textContent = `@font-face { font-family: "${fontName}"; src: url("${fontUrl}"); }`;
+          document.head.appendChild(styleEl);
+
+          // Add font to select dropdown
+          const opt = document.createElement('option');
+          opt.value = `"${fontName}", sans-serif`;
+          opt.textContent = `⭐ ${file.name.replace(/\.[^/.]+$/, '')}`;
+          propFontFamily.appendChild(opt);
+          propFontFamily.value = `"${fontName}", sans-serif`;
+
+          if (customFontNameLabel) {
+            customFontNameLabel.textContent = `✓ ${file.name.substring(0, 16)}`;
+          }
+
+          const chosenFontValue = `"${fontName}", sans-serif`;
+          if (applyFontToAllCheckbox && applyFontToAllCheckbox.checked) {
+            for (const k of Object.keys(layout)) {
+              if (layout[k].type === 'text') {
+                layout[k].fontFamily = chosenFontValue;
+              }
+            }
+          } else {
+            const item = layout[selectedKey];
+            if (item && item.type === 'text') {
+              item.fontFamily = chosenFontValue;
+            }
+          }
+
+          await document.fonts.ready;
+          renderCanvas();
+          alert(`🎉 Đã nạp thành công phông chữ "${file.name}"!`);
+        } catch (err) {
+          console.error("Font load error:", err);
+          alert(`❌ Không thể nạp file font "${file.name}": ${(err.message || err)}\n\n(Lưu ý: File font cần có cấu trúc TrueType/OpenType hợp lệ, không bị lỗi dữ liệu header)`);
+        }
+      });
+    }
+
+    if (applyFontToAllCheckbox) {
+      applyFontToAllCheckbox.addEventListener('change', () => {
+        if (applyFontToAllCheckbox.checked && propFontFamily) {
+          const chosenFont = propFontFamily.value;
+          for (const k of Object.keys(layout)) {
+            if (layout[k].type === 'text') {
+              layout[k].fontFamily = chosenFont;
+            }
+          }
+          renderCanvas();
+        }
+      });
+    }
+
+    // Populate inspector
+    function updateInspector() {
+      const item = layout[selectedKey];
+      if (!item) return;
+
+      propX.value = Math.round(item.x);
+      propY.value = Math.round(item.y);
+      propW.value = Math.round(item.w);
+      propH.value = Math.round(item.h);
+      propVisible.checked = item.visible !== false;
+
+      if (item.type === 'text') {
+        typographyProps.classList.remove('hidden');
+        if (imageProps) imageProps.classList.add('hidden');
+        propFontSize.value = item.fontSize || 20;
+        propColor.value = item.color || '#000000';
+        propAlign.value = item.align || 'center';
+        if (propFontFamily) {
+          propFontFamily.value = item.fontFamily || "'Plus Jakarta Sans', sans-serif";
+        }
+      } else if (item.type === 'image') {
+        typographyProps.classList.add('hidden');
+        if (imageProps) {
+          imageProps.classList.remove('hidden');
+          const lbl = document.getElementById('selectedImageLabel');
+          if (lbl) lbl.textContent = item.label || 'Ảnh đang chọn';
+
+          // Check if this image has manual override
+          const overrideKey = `${currentIndex}_${selectedKey}`;
+          const globalOverrideKey = selectedKey;
+          const hasOverride = manualImageOverrides.has(overrideKey) || manualImageOverrides.has(globalOverrideKey);
+
+          if (imageSourceStatus) {
+            imageSourceStatus.textContent = hasOverride ? '⭐ Ảnh nạp thủ công' : '⚡ Tự động từ Excel/Kho';
+            imageSourceStatus.className = hasOverride ? 'text-[10px] text-purple-700 font-bold' : 'text-[10px] text-orange-700 font-medium';
+          }
+        }
+      } else {
+        typographyProps.classList.add('hidden');
+        if (imageProps) imageProps.classList.add('hidden');
+      }
+    }
+
+    selectedLayer.addEventListener('change', () => {
+      selectedKey = selectedLayer.value;
+      updateInspector();
+      renderCanvas();
+    });
+
+    [propX, propY, propW, propH, propFontSize, propColor, propAlign, propVisible, propFontFamily].forEach(el => {
+      if (!el) return;
+      el.addEventListener('input', () => {
+        const item = layout[selectedKey];
+        if (!item) return;
+        item.x = parseFloat(propX.value) || 0;
+        item.y = parseFloat(propY.value) || 0;
+        item.w = parseFloat(propW.value) || 0;
+        item.h = parseFloat(propH.value) || 0;
+        item.customW = item.w;
+        item.visible = propVisible.checked;
+        if (item.type === 'text') {
+          item.fontSize = parseFloat(propFontSize.value) || 16;
+          item.customFontSize = item.fontSize;
+          item.color = propColor.value;
+          item.align = propAlign.value;
+          if (propFontFamily) {
+            item.fontFamily = propFontFamily.value;
+            if (applyFontToAllCheckbox && applyFontToAllCheckbox.checked) {
+              for (const k of Object.keys(layout)) {
+                if (layout[k].type === 'text') {
+                  layout[k].fontFamily = propFontFamily.value;
+                }
+              }
+            }
+          }
+        }
+        renderCanvas();
+      });
+    });
+
+    // Manual Image Overrides for selected Layer
+    if (propImageFileInput) {
+      propImageFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => {
+            const overrideKey = `${currentIndex}_${selectedKey}`;
+            manualImageOverrides.set(overrideKey, img);
+            // Also register in general imageMap so it can be reused
+            const cleanName = file.name.trim().toLowerCase().replace(/\.[^/.]+$/, '');
+            imageMap.set(cleanName, file);
+            if (propImageFileName) propImageFileName.textContent = `✓ ${file.name.substring(0, 16)}`;
+            updateInspector();
+            renderCanvas();
+            alert(`🎉 Đã nạp thành công ảnh cho "${layout[selectedKey]?.label || selectedKey}"!`);
+          };
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (propClearOverrideBtn) {
+      propClearOverrideBtn.addEventListener('click', () => {
+        const overrideKey = `${currentIndex}_${selectedKey}`;
+        manualImageOverrides.delete(overrideKey);
+        manualImageOverrides.delete(selectedKey);
+        if (propImageFileName) propImageFileName.textContent = '📷 Nạp ảnh riêng cho đối tượng này';
+        updateInspector();
+        renderCanvas();
+      });
+    }
+
+    // Preset button event listeners
+    function updatePresetButtonsUI(count) {
+      const b1 = document.getElementById('btnLayout1Gift');
+      const b2 = document.getElementById('btnLayout2Gift');
+      const b3 = document.getElementById('btnLayout3Gift');
+      const b4 = document.getElementById('btnLayout4Gift');
+      [b1, b2, b3, b4].forEach(b => {
+        if (!b) return;
+        b.className = 'py-1 px-1.5 text-[11px] font-semibold bg-white hover:bg-purple-100 text-slate-700 border border-slate-200 rounded transition text-center';
+      });
+      if (count === 1 && b1) b1.className = 'py-1 px-1.5 text-[11px] font-semibold bg-purple-600 text-white rounded transition text-center';
+      if (count === 2 && b2) b2.className = 'py-1 px-1.5 text-[11px] font-semibold bg-purple-600 text-white rounded transition text-center';
+      if (count === 3 && b3) b3.className = 'py-1 px-1.5 text-[11px] font-semibold bg-purple-600 text-white rounded transition text-center';
+      if (count === 4 && b4) b4.className = 'py-1 px-1.5 text-[11px] font-semibold bg-purple-600 text-white rounded transition text-center';
+    }
+
+    // Quick Gift Spacing Tuner (default 15px)
+    let currentGiftSpacing = 15;
+    const giftSpacingSlider = document.getElementById('giftSpacingSlider');
+    const giftSpacingInput = document.getElementById('giftSpacingInput');
+
+    function applyCustomGiftSpacing(newSpacing) {
+      currentGiftSpacing = Math.max(0, Math.min(80, Math.round(Number(newSpacing) || 0)));
+      if (giftSpacingSlider) giftSpacingSlider.value = currentGiftSpacing;
+      if (giftSpacingInput) giftSpacingInput.value = currentGiftSpacing;
+      realignGiftsBySpacing(layout, currentGiftSpacing);
+      updateInspector();
+      renderCanvas();
+    }
+
+    if (giftSpacingSlider) {
+      giftSpacingSlider.addEventListener('input', (e) => applyCustomGiftSpacing(e.target.value));
+    }
+    if (giftSpacingInput) {
+      giftSpacingInput.addEventListener('change', (e) => applyCustomGiftSpacing(e.target.value));
+    }
+
+    // Helper to dynamically arrange gifts centered on the right podium with custom spacing
+    function realignGiftsBySpacing(targetLayout, spacing) {
+      const activeGifts = [];
+      for (let g = 1; g <= 4; g++) {
+        if (targetLayout[`gift${g}Img`] && targetLayout[`gift${g}Img`].visible !== false) {
+          activeGifts.push(g);
+        }
+      }
+      if (activeGifts.length <= 1) return;
+
+      const count = activeGifts.length;
+      const totalWidth = activeGifts.reduce((sum, g) => sum + (targetLayout[`gift${g}Img`].w || 110), 0) + (count - 1) * spacing;
+      // Right podium visual center is at X = 735
+      const podiumCenterX = 735;
+      let startX = Math.round(podiumCenterX - totalWidth / 2);
+
+      activeGifts.forEach((g) => {
+        const imgKey = `gift${g}Img`;
+        const nameKey = `gift${g}Name`;
+        const specKey = `gift${g}Spec`;
+
+        const imgEl = targetLayout[imgKey];
+        if (imgEl) {
+          imgEl.x = startX;
+          const centerX = Math.round(startX + imgEl.w / 2);
+
+          if (targetLayout[nameKey]) {
+            targetLayout[nameKey].x = centerX;
+          }
+          if (targetLayout[specKey]) {
+            targetLayout[specKey].x = centerX;
+          }
+
+          startX += imgEl.w + spacing;
+        }
+      });
+    }
+
+    // Podium Baseline Y State (Default 865)
+    let currentPodiumBaseline = 865;
+    const podiumBaselineSlider = document.getElementById('podiumBaselineSlider');
+    const podiumBaselineInput = document.getElementById('podiumBaselineInput');
+
+    function setPodiumBaseline(newBase) {
+      newBase = Math.round(Number(newBase) || 865);
+      const deltaY = newBase - currentPodiumBaseline;
+      currentPodiumBaseline = newBase;
+
+      if (podiumBaselineSlider) podiumBaselineSlider.value = newBase;
+      if (podiumBaselineInput) podiumBaselineInput.value = newBase;
+
+      // Also shift all presets baseline so switching presets keeps the user's custom baseline
+      for (const preset of Object.values(GIFT_PRESETS)) {
+        for (const [k, el] of Object.entries(preset)) {
+          if (k.startsWith('gift') && (k.endsWith('Img') || k.endsWith('Name') || k.endsWith('Spec'))) {
+            el.y += deltaY;
+          }
+        }
+      }
+
+      // Shift current active layout gift items
+      for (const [k, el] of Object.entries(layout)) {
+        if (k.startsWith('gift') && (k.endsWith('Img') || k.endsWith('Name') || k.endsWith('Spec'))) {
+          el.y += deltaY;
+        }
+      }
+
+      updateInspector();
+      renderCanvas();
+    }
+
+    if (podiumBaselineSlider) {
+      podiumBaselineSlider.addEventListener('input', (e) => setPodiumBaseline(e.target.value));
+    }
+    if (podiumBaselineInput) {
+      podiumBaselineInput.addEventListener('change', (e) => setPodiumBaseline(e.target.value));
+    }
+
+    const autoAttachSpecCheckbox = document.getElementById('autoAttachSpec');
+    const specGapInput = document.getElementById('specGapInput');
+    if (autoAttachSpecCheckbox) {
+      autoAttachSpecCheckbox.addEventListener('change', () => renderCanvas());
+    }
+    if (specGapInput) {
+      specGapInput.addEventListener('input', () => renderCanvas());
+    }
+
+    const autoAttachGiftsCheckbox = document.getElementById('autoAttachGifts');
+    const giftTextGapInput = document.getElementById('giftTextGapInput');
+    if (autoAttachGiftsCheckbox) {
+      autoAttachGiftsCheckbox.addEventListener('change', () => renderCanvas());
+    }
+    if (giftTextGapInput) {
+      giftTextGapInput.addEventListener('input', () => renderCanvas());
+    }
+
+    function applyGiftPreset(count) {
+      if (GIFT_PRESETS[count]) {
+        Object.assign(layout, JSON.parse(JSON.stringify(GIFT_PRESETS[count])));
+        updatePresetButtonsUI(count);
+        updateInspector();
+        renderCanvas();
+      }
+    }
+
+    document.getElementById('btnLayout1Gift').addEventListener('click', () => {
+      document.getElementById('autoAdaptGifts').checked = false;
+      applyGiftPreset(1);
+    });
+    document.getElementById('btnLayout2Gift').addEventListener('click', () => {
+      document.getElementById('autoAdaptGifts').checked = false;
+      applyGiftPreset(2);
+    });
+    document.getElementById('btnLayout3Gift').addEventListener('click', () => {
+      document.getElementById('autoAdaptGifts').checked = false;
+      applyGiftPreset(3);
+    });
+    document.getElementById('btnLayout4Gift').addEventListener('click', () => {
+      document.getElementById('autoAdaptGifts').checked = false;
+      applyGiftPreset(4);
+    });
+
+    resetLayoutBtn.addEventListener('click', () => {
+      if (confirm('Khôi phục lại toàn bộ tọa độ về thiết lập mẫu ban đầu?')) {
+        layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+        currentPodiumBaseline = 865;
+        currentGiftSpacing = 15;
+        if (giftSpacingSlider) giftSpacingSlider.value = 15;
+        if (giftSpacingInput) giftSpacingInput.value = 15;
+        if (podiumBaselineSlider) podiumBaselineSlider.value = 865;
+        if (podiumBaselineInput) podiumBaselineInput.value = 865;
+        updateInspector();
+        renderCanvas();
+      }
+    });
+
+    // Save & Load Layout JSON
+    saveConfigBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(layout, null, 2)], { type: 'application/json' });
+      saveAs(blob, `layout_config_${new Date().toISOString().slice(0, 10)}.json`);
+    });
+
+    loadConfigInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          layout = JSON.parse(evt.target.result);
+          updateInspector();
+          renderCanvas();
+          alert('Đã nạp file cấu hình Layout thành công!');
+        } catch (err) {
+          alert('File cấu hình JSON không hợp lệ!');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Excel Parser
+    excelInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const excelLabel = document.getElementById('excelFileNameLabel');
+      if (excelLabel) excelLabel.textContent = `Đã chọn: ${file.name}`;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          if (typeof XLSX === 'undefined') {
+            alert('Lỗi: Thư viện XLSX chưa được tải! Vui lòng tải lại trang.');
+            return;
+          }
+          const data = new Uint8Array(evt.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          if (!wb.SheetNames || wb.SheetNames.length === 0) {
+            alert('File Excel không có sheet nào!');
+            return;
+          }
+
+          // Search for sheet with actual rows
+          let selectedSheet = null;
+          let sheetData = [];
+          for (const sName of wb.SheetNames) {
+            const raw = XLSX.utils.sheet_to_json(wb.Sheets[sName], { header: 1, defval: '' });
+            if (raw && raw.length > 1) {
+              selectedSheet = wb.Sheets[sName];
+              sheetData = raw;
+              break;
+            }
+          }
+
+          if (!selectedSheet && wb.SheetNames.length > 0) {
+            selectedSheet = wb.Sheets[wb.SheetNames[0]];
+            sheetData = XLSX.utils.sheet_to_json(selectedSheet, { header: 1, defval: '' });
+          }
+
+          if (!sheetData || sheetData.length < 2) {
+            alert('File Excel của bạn chưa có dữ liệu hoặc chỉ có dòng tiêu đề!');
+            return;
+          }
+
+          // Find the actual header row (row that contains 'Tên sản phẩm' or 'SKU')
+          let headerRowIndex = 0;
+          for (let r = 0; r < Math.min(20, sheetData.length); r++) {
+            const rowText = (sheetData[r] || []).map(c => String(c || '').toLowerCase()).join(' ');
+            if (rowText.includes('tên sản phẩm') || rowText.includes('sku sản phẩm') || rowText.includes('sku')) {
+              headerRowIndex = r;
+              break;
+            }
+          }
+
+          const rawHeaders = sheetData[headerRowIndex].map(h => String(h || '').trim());
+          const rows = [];
+          let currentProduct = null;
+
+          for (let r = headerRowIndex + 1; r < sheetData.length; r++) {
+            const rowArr = sheetData[r];
+            if (!rowArr || !rowArr.some(cell => String(cell || '').trim() !== '')) continue;
+
+            const rowObj = {};
+            rawHeaders.forEach((h, cIdx) => {
+              if (h) rowObj[h] = rowArr[cIdx] !== undefined ? rowArr[cIdx] : '';
+            });
+
+            // Check if this row is a new product header row in multi-section tables
+            const rowStr = Object.values(rowObj).join(' ').toLowerCase();
+            if (rowStr.includes('thời gian trả ảnh') || rowStr.includes('tên thương hiệu') || rowStr.includes('shop name') || rowStr.includes('mã sản phẩm,tên sản phẩm')) {
+              continue;
+            }
+
+            // Check if this row is a new product (has SKU or Product Name)
+            const skuVal = String(rowObj['SKU sản phẩm'] || rowObj['SKU SP'] || rowObj['SKU'] || rowObj['Mã sản phẩm'] || '').trim();
+            const nameVal = String(rowObj['Tên sản phẩm'] || rowObj['Tên SP'] || '').trim();
+
+            if (skuVal || nameVal) {
+              currentProduct = rowObj;
+              rows.push(currentProduct);
+            } else if (currentProduct) {
+              // This row is an additional gift item belonging to currentProduct!
+              const extraGiftName = String(rowObj['Tên quà tặng + khối lượng'] || rowObj['Quà tặng kèm (nếu có)'] || rowObj['Tên quà 1'] || '').trim();
+              const extraGiftSku = String(rowObj['SKU quà tặng'] || rowObj['SKU QUÀ'] || rowObj['Ảnh quà 1'] || '').trim();
+
+              if (extraGiftName) {
+                const existingGifts = currentProduct['Tên quà tặng + khối lượng'] || currentProduct['Quà tặng kèm (nếu có)'] || '';
+                currentProduct['Tên quà tặng + khối lượng'] = existingGifts ? `${existingGifts}\n${extraGiftName}` : extraGiftName;
+              }
+              if (extraGiftSku) {
+                const existingSkus = currentProduct['SKU quà tặng'] || currentProduct['SKU QUÀ'] || '';
+                currentProduct['SKU quà tặng'] = existingSkus ? `${existingSkus}\n${extraGiftSku}` : extraGiftSku;
+              }
+            }
+          }
+
+          if (rows.length > 0) {
+            excelRows = rows;
+            currentIndex = 0;
+            updateDataTable();
+            renderCanvas();
+            alert(`🎉 NẠP THÀNH CÔNG ${excelRows.length} SẢN PHẨM!\nBảng dữ liệu bên dưới đã được cập nhật.`);
+          } else {
+            alert('Không tìm thấy dòng dữ liệu sản phẩm nào trong file Excel!');
+          }
+        } catch (err) {
+          alert('Lỗi khi đọc file Excel: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Helper: Parse Tab-separated or Comma-separated text from Excel clipboard
+    function parseExcelText(rawText) {
+      if (!rawText || !rawText.trim()) return [];
+      const lines = rawText.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+
+      const delimiter = lines[0].includes('\t') ? '\t' : ',';
+      
+      // Parse CSV lines respecting quotes
+      function parseLine(line) {
+        if (delimiter === '\t') return line.split('\t').map(c => c.trim().replace(/^"|"$/g, ''));
+        const result = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') inQuotes = !inQuotes;
+          else if (char === ',' && !inQuotes) {
+            result.push(cur.trim().replace(/^"|"$/g, ''));
+            cur = '';
+          } else {
+            cur += char;
+          }
+        }
+        result.push(cur.trim().replace(/^"|"$/g, ''));
+        return result;
+      }
+
+      // Find header index
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(20, lines.length); i++) {
+        const l = lines[i].toLowerCase();
+        if (l.includes('tên sản phẩm') || l.includes('sku')) {
+          headerIdx = i;
+          break;
+        }
+      }
+
+      const headers = parseLine(lines[headerIdx]);
+      const rows = [];
+      let currentProd = null;
+
+      for (let i = headerIdx + 1; i < lines.length; i++) {
+        const cols = parseLine(lines[i]);
+        if (!cols || !cols.some(c => c)) continue;
+
+        const rowObj = {};
+        headers.forEach((h, idx) => {
+          if (h) rowObj[h] = cols[idx] !== undefined ? cols[idx] : '';
+        });
+
+        const rowStr = Object.values(rowObj).join(' ').toLowerCase();
+        if (rowStr.includes('thời gian trả ảnh') || rowStr.includes('tên thương hiệu') || rowStr.includes('shop name')) continue;
+
+        const skuVal = String(rowObj['SKU sản phẩm'] || rowObj['SKU SP'] || rowObj['SKU'] || rowObj['Mã sản phẩm'] || '').trim();
+        const nameVal = String(rowObj['Tên sản phẩm'] || rowObj['Tên SP'] || '').trim();
+
+        if (skuVal || nameVal) {
+          currentProd = rowObj;
+          rows.push(currentProd);
+        } else if (currentProd) {
+          const extraGift = String(rowObj['Tên quà tặng + khối lượng'] || rowObj['Quà tặng kèm (nếu có)'] || '').trim();
+          const extraSku = String(rowObj['SKU quà tặng'] || rowObj['SKU QUÀ'] || '').trim();
+          if (extraGift) {
+            currentProd['Tên quà tặng + khối lượng'] = (currentProd['Tên quà tặng + khối lượng'] || '') + '\n' + extraGift;
+          }
+          if (extraSku) {
+            currentProd['SKU quà tặng'] = (currentProd['SKU quà tặng'] || '') + '\n' + extraSku;
+          }
+        }
+      }
+      return rows;
+    }
+
+    // Apply Pasted text
+    document.getElementById('btnApplyPastedExcel').addEventListener('click', () => {
+      const val = document.getElementById('pasteExcelInput').value;
+      const parsed = parseExcelText(val);
+      if (parsed.length > 0) {
+        excelRows = parsed;
+        currentIndex = 0;
+        updateDataTable();
+        renderCanvas();
+        alert(`🎉 Nạp thành công ${excelRows.length} sản phẩm từ nội dung dán!`);
+      } else {
+        alert('Không nhận diện được dữ liệu! Vui lòng chọn và copy các dòng từ Excel rồi dán vào ô.');
+      }
+    });
+
+    // Quick load user's actual Decorté dataset button
+    const USER_ACTUAL_DECORTE_DATA = `Mã sản phẩm,Tên sản phẩm,Ảnh sản phẩm,Quy cách sản phẩm,tổng giá trị quà tặng,Ảnh quà 1,tên quà 1,quy cách quà 1,ảnh quà 2,tên quà 2,quy cách quà 2,ảnh quà 3,tên quà 3,quy cách quà 3
+4971710375831,TINH CHẤT DƯỠNG DA CHUYÊN SÂU LIPOSOME DECORTÉ,4971710375831,50ml,250000,4971710615753,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ 15ML,15ml,4971710599343,KEM DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ SAMPLE 10g,10g,,,
+4971710375831,TINH CHẤT DƯỠNG DA CHUYÊN SÂU LIPOSOME DECORTÉ,4971710375831,50ml,130000,4971710994131,KEM DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ 10g,10g,4971710571417,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING II 14ml,14ml,4971710571400,NHŨ TƯƠNG DƯỠNG DA TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE II SAMPLE 14ml,14ml
+4971710376524,KEM CHỐNG NẮNG BẢO VỆ DA DECORTÉ SUN SHELTER CC 10 - HỒNG ÁNH TÍM,4971710376524,35g,600000,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I 9ml,9ml,,,
+4971710376524,KEM CHỐNG NẮNG BẢO VỆ DA DECORTÉ SUN SHELTER CC 10 - HỒNG ÁNH TÍM,4971710376524,35g,900000,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I SAMPLE 9.0ml,9ml,4971710583519,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ SAMPLE 0.8ml,0.8ml
+4971710624700,KEM CHỐNG NẮNG BẢO VỆ DA HIỆU CHỈNH TONE DA DECORTÉ UV COMFORT TONE UP CC 10,4971710624700,Tuýp 30ml,2000000,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I SAMPLE 9.0ml,9ml,4971710565942,NHŨ TƯƠNG DƯỠNG DA TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9.0ml (Chai),9ml,,,
+4971710624700,KEM CHỐNG NẮNG BẢO VỆ DA HIỆU CHỈNH TONE DA DECORTÉ UV COMFORT TONE UP CC 10,4971710624700,Tuýp 30ml,10000000,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I 9ml,9ml,4971710583519,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ SAMPLE 0.8ml,0.8ml
+4971710378498,PHẤN PHỦ DECORTÉ BỘ 4 MÀU 101,4971710378498,16g,200000,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I 9ml,9ml,4971710583519,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ SAMPLE 0.8ml,0.8ml
+4971710378498,PHẤN PHỦ DECORTÉ BỘ 4 MÀU 101,4971710378498,16g,876327,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I 9ml,9ml,4971710583519,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ SAMPLE 0.8ml,0.8ml
+4971710624700,KEM CHỐNG NẮNG BẢO VỆ DA HIỆU CHỈNH TONE DA DECORTÉ UV COMFORT TONE UP CC 10,4971710624700,Tuýp 30ml,873487,4971710574340,PHẤN PHỦ DECORTÉ 02 SAMPLE 1.5G,1.5g,4971710565836,LOTION DƯỠNG ẨM SÂU VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ HYDRATING I 9ml,9ml,4971710583526,KEM DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ 1.2g,1.2g
+4971710378498,PHẤN PHỦ DECORTÉ BỘ 4 MÀU 101,4971710378498,16g,674637,4971710574340,PHẤN PHỦ DECORTÉ 02 SAMPLE 1.5G,1.5g,4971710565942,NHŨ TƯƠNG DƯỠNG SÁNG DA VÀ TĂNG CƯỜNG ĐỘ ĐÀN HỒI DECORTÉ AQ MICRO-RADIANCE I SAMPLE 9ml,9ml,4971710994124,TINH CHẤT DƯỠNG DA CHUYÊN SÂU NGĂN NGỪA LÃO HÓA LIPOSOME DECORTÉ 6ml,6ml`;
+
+    document.getElementById('btnLoadYourData').addEventListener('click', () => {
+      const parsed = parseExcelText(USER_ACTUAL_DECORTE_DATA);
+      excelRows = parsed;
+      currentIndex = 0;
+      updateDataTable();
+      renderCanvas();
+      alert('🎉 Đã nạp ngay tức thì bộ dữ liệu Decorté kèm toàn bộ 16 ảnh test từ Desktop của bạn!');
+    });
+
+    // Image handling
+    function handleImageFiles(files) {
+      if (!files || files.length === 0) return;
+      let newCount = 0;
+      Array.from(files).forEach(file => {
+        const nameLower = file.name.toLowerCase();
+        if (file.type.startsWith('image/') || nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg') || nameLower.endsWith('.webp')) {
+          const cleanKey = file.name.trim().toLowerCase().replace(/\.[^/.]+$/, '');
+          imageMap.set(cleanKey, file);
+          newCount++;
+        }
+      });
+      const badge = document.getElementById('imageCountBadge');
+      badge.textContent = `✅ Đã nạp ${imageMap.size} ảnh`;
+      badge.className = 'text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md';
+      imageCache.clear();
+      renderCanvas();
+      alert(`🎉 Đã nạp thành công ${newCount} file ảnh vào kho!`);
+    }
+    folderInput.addEventListener('change', (e) => handleImageFiles(e.target.files));
+    filesInput.addEventListener('change', (e) => handleImageFiles(e.target.files));
+
+    // Helper: Normalize string for fuzzy asset matching (remove accents, punctuation, spaces, extensions)
+    function normalizeAssetKey(str) {
+      if (!str) return '';
+      return String(str)
+        .trim()
+        .toLowerCase()
+        .replace(/\.[^/.]+$/, '') // remove extension
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // remove diacritics
+        .replace(/[^a-z0-9]/g, ''); // keep alphanumeric only
+    }
+
+    // Helper: Extract digit SKU (e.g. 13-digit barcode / SKU like 4971710599343)
+    function extractDigitsSku(str) {
+      if (!str) return '';
+      const match = String(str).match(/\b(\d{6,14})\b/);
+      return match ? match[1] : '';
+    }
+
+    // Get loaded image element smartly with fuzzy matching & manual overrides
+    async function getImageElement(fileNameOrKey, currentElementKey = null) {
+      // 1. Check manual override for current row & element
+      if (currentElementKey) {
+        const rowOverrideKey = `${currentIndex}_${currentElementKey}`;
+        if (manualImageOverrides.has(rowOverrideKey)) {
+          return manualImageOverrides.get(rowOverrideKey);
+        }
+        if (manualImageOverrides.has(currentElementKey)) {
+          return manualImageOverrides.get(currentElementKey);
+        }
+      }
+
+      if (!fileNameOrKey) return null;
+      const rawTarget = String(fileNameOrKey).trim();
+      const normTarget = normalizeAssetKey(rawTarget);
+      const digitSku = extractDigitsSku(rawTarget);
+
+      if (!normTarget && !digitSku) return null;
+
+      const cacheKey = normTarget || digitSku;
+      if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+
+      // 2. Check embedded assets (preloaded base64)
+      if (typeof window.EMBEDDED_ASSETS !== 'undefined') {
+        for (const [k, dataUrl] of Object.entries(window.EMBEDDED_ASSETS)) {
+          const normK = normalizeAssetKey(k);
+          const kDigits = extractDigitsSku(k);
+
+          // Matching criteria: exact normalized, digit SKU match, or substring match
+          const isMatch = (digitSku && kDigits && digitSku === kDigits) ||
+                          (normTarget && normK && (normK === normTarget || normK.includes(normTarget) || normTarget.includes(normK))) ||
+                          (digitSku && normK && normK.includes(digitSku));
+
+          if (isMatch) {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => { imageCache.set(cacheKey, img); resolve(img); };
+              img.onerror = () => resolve(null);
+              img.src = dataUrl;
+            });
+          }
+        }
+      }
+
+      // 3. Check user uploaded files in imageMap
+      let matchedFile = null;
+
+      // 3.1 Exact normalized match
+      if (imageMap.has(normTarget)) {
+        matchedFile = imageMap.get(normTarget);
+      }
+
+      // 3.2 Digit SKU match or substring match
+      if (!matchedFile) {
+        for (const [key, file] of imageMap.entries()) {
+          const normKey = normalizeAssetKey(key);
+          const fileDigits = extractDigitsSku(file.name);
+
+          if ((digitSku && fileDigits && digitSku === fileDigits) ||
+              (digitSku && normKey && normKey.includes(digitSku)) ||
+              (normTarget && normKey && (normKey.includes(normTarget) || normTarget.includes(normKey)))) {
+            matchedFile = file;
+            break;
+          }
+        }
+      }
+
+      if (!matchedFile) return null;
+
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { imageCache.set(cacheKey, img); resolve(img); };
+        img.onerror = () => resolve(null);
+        img.src = URL.createObjectURL(matchedFile);
+      });
+    }
+
+    
+    // ==========================================
+    // TÍNH NĂNG 1: TỰ ĐỘNG KHỬ NỀN TRẮNG (CHROMAKEY / WHITE REMOVAL)
+    // ==========================================
+    const processedWhiteBgCache = new Map();
+
+    function removeWhiteBackground(img, tolerance = 235) {
+      if (!img || !img.width || !img.height) return img;
+      
+      const cacheKey = `${img.src || img.currentSrc || 'img'}_tol_${tolerance}`;
+      if (processedWhiteBgCache.has(cacheKey)) {
+        return processedWhiteBgCache.get(cacheKey);
+      }
+
+      try {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = img.width;
+        offscreen.height = img.height;
+        const oCtx = offscreen.getContext('2d');
+        oCtx.drawImage(img, 0, 0);
+
+        const imgData = oCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+        const data = imgData.data;
+        const len = data.length;
+
+        // Tolerance boundary: pixels with R, G, B >= tolerance will be faded or cleared
+        const t = Math.min(254, Math.max(150, Number(tolerance) || 235));
+        const fadeRange = 255 - t; // range for smooth antialiasing feather
+
+        for (let i = 0; i < len; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+
+          if (a === 0) continue;
+
+          // Check if pixel is near white
+          const minChannel = Math.min(r, g, b);
+          if (minChannel >= t) {
+            if (fadeRange > 1) {
+              // Smooth feathering
+              const delta = minChannel - t;
+              const alphaFactor = 1 - (delta / fadeRange);
+              data[i + 3] = Math.max(0, Math.min(255, Math.round(a * Math.max(0, alphaFactor))));
+            } else {
+              data[i + 3] = 0;
+            }
+          }
+        }
+
+        oCtx.putImageData(imgData, 0, 0);
+        processedWhiteBgCache.set(cacheKey, offscreen);
+        return offscreen;
+      } catch (err) {
+        console.warn('Cannot process image background (possible CORS or canvas error):', err);
+        return img;
+      }
+    }
+
+    // Auto-listen to white background toggle change
+    document.getElementById('autoRemoveWhiteBg')?.addEventListener('change', () => {
+      processedWhiteBgCache.clear();
+      renderCanvas();
+    });
+    document.getElementById('whiteBgTolerance')?.addEventListener('input', () => {
+      processedWhiteBgCache.clear();
+      renderCanvas();
+    });
+
+    // Canvas Render Engine
+    async function renderCanvas(targetCtx = ctx, isExport = false) {
+      const W = previewCanvas.width;
+      const H = previewCanvas.height;
+
+      // 1. Draw Background Image
+      if (bgImage.complete && bgImage.naturalWidth > 0) {
+        targetCtx.drawImage(bgImage, 0, 0, W, H);
+      } else {
+        targetCtx.fillStyle = '#E9D5FF';
+        targetCtx.fillRect(0, 0, W, H);
+      }
+
+      // Current row data to render
+      const row = excelRows[currentIndex] || getDemoRow();
+
+      // Helper to retrieve data from row by flexible key lookup (normalize accents, spaces, case)
+      function getVal(keys) {
+        for (const k of keys) {
+          const normK = k.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          for (const rowK of Object.keys(row)) {
+            const normRowK = rowK.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (normRowK === normK || normRowK.includes(normK)) return row[rowK];
+          }
+        }
+        return '';
+      }
+
+      // Extract gifts smartly: either from distinct columns (Quà 1, Quà 2...) OR multi-line column ("Tên quà tặng + khối lượng" & "SKU quà tặng")
+      function getExtractedGifts() {
+        const gifts = [];
+        
+        // Check multi-line column first (like user's file: "Tên quà tặng + khối lượng")
+        const multiLineNames = getVal(['Tên quà tặng + khối lượng', 'Ten qua tang + khoi luong', 'Tên quà tặng', 'Quà tặng kèm']);
+        const multiLineSkus = getVal(['SKU quà tặng', 'SKU QUÀ', 'SKU qua']);
+
+        if (multiLineNames && String(multiLineNames).includes('\n')) {
+          const nameLines = String(multiLineNames).split('\n').map(s => s.trim()).filter(Boolean);
+          const skuLines = String(multiLineSkus || '').split('\n').map(s => s.trim()).filter(Boolean);
+
+          nameLines.forEach((fullName, idx) => {
+            // Try extracting spec (e.g. "15ML", "Chai 30 ML", "TUÝP 20G", "16g")
+            let name = fullName;
+            let spec = '';
+            const matchSpec = fullName.match(/(?:chai|tuýp|sample|hộp|gói)?\s*(\d+(?:\.\d+)?\s*(?:ml|g|gam|miếng|viên))\b/i);
+            if (matchSpec) {
+              spec = matchSpec[1].toUpperCase();
+              name = fullName.replace(matchSpec[0], '').trim();
+            }
+            gifts.push({
+              name: name || fullName,
+              spec: spec,
+              sku: skuLines[idx] || ''
+            });
+          });
+        } else if (multiLineNames) {
+          // Single gift in this column
+          gifts.push({
+            name: String(multiLineNames).trim(),
+            spec: '',
+            sku: String(multiLineSkus || '').trim()
+          });
+        }
+
+        // If not found from multi-line, check separate columns (Quà 1, Quà 2, Quà 3, Quà 4)
+        if (gifts.length === 0) {
+          for (let g = 1; g <= 4; g++) {
+            const gName = getVal([`Tên quà ${g}`, `Ten qua ${g}`, `Quà tặng ${g}`, `Tên quà tặng ${g}`, `Tên SP quà ${g}`]);
+            const gSpec = getVal([`Quy cách quà ${g}`, `Quy cach qua ${g}`, `Dung tích quà ${g}`, `Khối lượng quà ${g}`]);
+            const gSku = getVal([`Ảnh quà ${g}`, `Anh qua ${g}`, `SKU quà ${g}`, `Mã quà ${g}`, `Hình quà ${g}`, `SKU QUÀ ${g}`, `Hình quà tặng ${g}`]);
+            if (gName || gSku || gSpec) {
+              gifts.push({ name: gName, spec: gSpec, sku: gSku });
+            }
+          }
+        }
+        return gifts;
+      }
+
+      const giftsList = getExtractedGifts();
+
+      // If auto-adapt gifts is enabled, check actual gift count in current row (1, 2, 3, or 4)
+      const autoAdapt = document.getElementById('autoAdaptGifts').checked;
+      if (autoAdapt) {
+        let activeCount = Math.min(4, Math.max(1, giftsList.length || 1));
+        if (GIFT_PRESETS[activeCount]) {
+          const presetObj = JSON.parse(JSON.stringify(GIFT_PRESETS[activeCount]));
+          // Intelligently merge preset coordinates while preserving user-customized styling (color, fontFamily, custom fontSize)
+          for (const pKey of Object.keys(presetObj)) {
+            if (layout[pKey]) {
+              const userColor = layout[pKey].color;
+              const userFontFamily = layout[pKey].fontFamily;
+              const userFontSize = layout[pKey].customFontSize || (layout[pKey].type === 'text' && layout[pKey].fontSize !== GIFT_PRESETS[activeCount][pKey]?.fontSize ? layout[pKey].fontSize : null);
+              const userW = layout[pKey].customW || null;
+
+              Object.assign(layout[pKey], presetObj[pKey]);
+
+              // Restore custom styling
+              if (userColor) layout[pKey].color = userColor;
+              if (userFontFamily) layout[pKey].fontFamily = userFontFamily;
+              if (userFontSize) layout[pKey].fontSize = userFontSize;
+              if (userW) layout[pKey].w = userW;
+            } else {
+              layout[pKey] = presetObj[pKey];
+            }
+          }
+          updatePresetButtonsUI(activeCount);
+          if (typeof realignGiftsBySpacing === 'function') {
+            realignGiftsBySpacing(layout, currentGiftSpacing);
+          }
+        }
+      }
+
+      // 2. Draw Elements based on Layout
+      let mainProdRenderedBounds = null;
+      const giftRenderedBounds = {};
+
+      // Draw all image elements first so their rendered top/bottom bounds are known
+      for (const [key, item] of Object.entries(layout)) {
+        if (item.visible === false || item.type !== 'image') continue;
+
+        let imgFile = '';
+        if (key === 'mainProdImg') {
+          imgFile = getVal(['Ảnh sản phẩm', 'SKU sản phẩm', 'SKU SP', 'SKU', 'Mã sản phẩm', 'Hinh SP']);
+        } else if (key === 'gift1Img') {
+          imgFile = giftsList[0]?.sku || getVal(['Ảnh quà 1', 'SKU quà 1']);
+        } else if (key === 'gift2Img') {
+          imgFile = giftsList[1]?.sku || getVal(['Ảnh quà 2', 'SKU quà 2']);
+        } else if (key === 'gift3Img') {
+          imgFile = giftsList[2]?.sku || getVal(['Ảnh quà 3', 'SKU quà 3']);
+        } else if (key === 'gift4Img') {
+          imgFile = giftsList[3]?.sku || getVal(['Ảnh quà 4', 'SKU quà 4']);
+        }
+
+        let loadedImg = await getImageElement(imgFile, key);
+        if (loadedImg) {
+          const shouldRemoveWhite = document.getElementById('autoRemoveWhiteBg')?.checked;
+          if (shouldRemoveWhite) {
+            const tol = Number(document.getElementById('whiteBgTolerance')?.value) || 235;
+            loadedImg = removeWhiteBackground(loadedImg, tol);
+          }
+          const drawnBounds = drawImageFit(targetCtx, loadedImg, item.x, item.y, item.w, item.h);
+          if (key === 'mainProdImg') {
+            mainProdRenderedBounds = drawnBounds;
+          } else if (key.startsWith('gift') && key.endsWith('Img')) {
+            const gNum = key.replace('gift', '').replace('Img', '');
+            giftRenderedBounds[gNum] = drawnBounds;
+          }
+        } else if (!isExport) {
+          drawBoundingBox(targetCtx, item, key === selectedKey);
+        }
+      }
+
+      // Draw all text elements (taking into account image rendered bounds)
+      for (const [key, item] of Object.entries(layout)) {
+        if (item.visible === false || item.type !== 'text') continue;
+
+        let textVal = '';
+        if (key === 'mainProdName') {
+          textVal = getVal(['Tên sản phẩm', 'Ten san pham', 'Tên SP', 'Ten SP']);
+        } else if (key === 'mainProdSpec') {
+          textVal = getVal(['Khối lượng sản phẩm', 'Quy cách sản phẩm', 'Dung tích', 'Quy cách SP']);
+        } else if (key === 'giftTotalBanner') {
+          textVal = formatVND(getVal(['Giá trị quà tặng kèm', 'tổng giá trị quà tặng', 'Tổng giá quà tặng', 'Tổng giá quà']));
+        } else if (key === 'gift1Name') {
+          textVal = giftsList[0]?.name || getVal(['Tên quà 1', 'Ten qua 1']);
+        } else if (key === 'gift1Spec') {
+          textVal = giftsList[0]?.spec || getVal(['Quy cách quà 1', 'Quy cach qua 1']);
+        } else if (key === 'gift2Name') {
+          textVal = giftsList[1]?.name || getVal(['Tên quà 2', 'Ten qua 2']);
+        } else if (key === 'gift2Spec') {
+          textVal = giftsList[1]?.spec || getVal(['Quy cách quà 2', 'Quy cach qua 2']);
+        } else if (key === 'gift3Name') {
+          textVal = giftsList[2]?.name || getVal(['Tên quà 3', 'Ten qua 3']);
+        } else if (key === 'gift3Spec') {
+          textVal = giftsList[2]?.spec || getVal(['Quy cách quà 3', 'Quy cach qua 3']);
+        } else if (key === 'gift4Name') {
+          textVal = giftsList[3]?.name || getVal(['Tên quà 4', 'Ten qua 4']);
+        } else if (key === 'gift4Spec') {
+          textVal = giftsList[3]?.spec || getVal(['Quy cách quà 4', 'Quy cach qua 4']);
+        }
+
+        let renderItem = item;
+
+        // Dynamic positioning for main product spec to follow product bottom
+        if (key === 'mainProdSpec' && mainProdRenderedBounds && document.getElementById('autoAttachSpec')?.checked) {
+          const gap = Number(document.getElementById('specGapInput')?.value) || 20;
+          renderItem = Object.assign({}, item, {
+            x: mainProdRenderedBounds.centerX,
+            y: Math.min(800, mainProdRenderedBounds.bottomY + gap)
+          });
+        }
+
+        // Dynamic positioning for gifts: spec and name dynamically hug the top of each gift image
+        if (document.getElementById('autoAttachGifts')?.checked) {
+          const giftMatch = key.match(/^gift(\d+)(Name|Spec)$/);
+          if (giftMatch) {
+            const gNum = giftMatch[1];
+            const gType = giftMatch[2]; // 'Name' or 'Spec'
+            const gBounds = giftRenderedBounds[gNum];
+            if (gBounds) {
+              const gap = Number(document.getElementById('giftTextGapInput')?.value) || 12;
+              const hasSpec = !!(giftsList[Number(gNum) - 1]?.spec || getVal([`Quy cách quà ${gNum}`, `Quy cach qua ${gNum}`]));
+              const specHeight = 16;
+              const nameText = giftsList[Number(gNum) - 1]?.name || getVal([`Tên quà ${gNum}`, `Ten qua ${gNum}`]) || '';
+              const nameInfo = calculateTextLines(targetCtx, nameText, layout[`gift${gNum}Name`] || item);
+
+              if (gType === 'Spec') {
+                renderItem = Object.assign({}, item, {
+                  x: gBounds.centerX,
+                  y: gBounds.topY - gap
+                });
+              } else if (gType === 'Name') {
+                const specOffset = hasSpec ? (specHeight + 4) : 0;
+                const bottomTargetY = gBounds.topY - gap - specOffset;
+                // Calculate y start line so bottom of wrapped text sits nicely above spec
+                const startY = Math.max(440, bottomTargetY - nameInfo.totalHeight + (item.fontSize || 11));
+                renderItem = Object.assign({}, item, {
+                  x: gBounds.centerX,
+                  y: startY
+                });
+              }
+            }
+          }
+        }
+
+        if (textVal) {
+          drawLayoutText(targetCtx, textVal, renderItem);
+        } else if (!isExport) {
+          drawLayoutText(targetCtx, renderItem.label, renderItem, true);
+        }
+
+        if (!isExport && key === selectedKey) {
+          drawSelectionFrame(targetCtx, renderItem);
+        }
+      }
+    }
+
+    function formatVND(val) {
+      if (!val) return '';
+      const num = Number(String(val).replace(/[^0-9]/g, ''));
+      if (isNaN(num) || num === 0) return String(val).replace(/[đĐ]/g, '').trim();
+      return new Intl.NumberFormat('vi-VN').format(num);
+    }
+
+    // Draw Image with Aspect Fit and customizable vertical alignment ('bottom' for podium standing, or 'center')
+    function drawImageFit(ctx, img, x, y, w, h, valign = 'bottom') {
+      const imgAspect = img.width / img.height;
+      const boxAspect = w / h;
+      let drawW, drawH, drawX, drawY;
+
+      if (imgAspect > boxAspect) {
+        // Image is wider than box -> width fills w, height scales down
+        drawW = w;
+        drawH = w / imgAspect;
+        drawX = x;
+        if (valign === 'bottom') {
+          drawY = y + (h - drawH); // Align bottom to podium
+        } else {
+          drawY = y + (h - drawH) / 2;
+        }
+      } else {
+        // Image is taller or square -> height fills h or constrained by w
+        drawH = h;
+        drawW = h * imgAspect;
+        if (drawW > w) {
+          drawW = w;
+          drawH = w / imgAspect;
+        }
+        drawX = x + (w - drawW) / 2;
+        if (valign === 'bottom') {
+          drawY = y + (h - drawH); // Always align bottom of image to bottom of box (the podium surface)!
+        } else {
+          drawY = y + (h - drawH) / 2;
+        }
+      }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      return { x: drawX, y: drawY, w: drawW, h: drawH, bottomY: drawY + drawH, topY: drawY, centerX: drawX + drawW / 2 };
+    }
+
+    function drawBoundingBox(ctx, item, isSelected) {
+      ctx.save();
+      ctx.strokeStyle = isSelected ? '#A855F7' : 'rgba(168, 85, 247, 0.4)';
+      ctx.lineWidth = isSelected ? 3 : 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(item.x, item.y, item.w, item.h);
+      ctx.fillStyle = isSelected ? 'rgba(168, 85, 247, 0.15)' : 'rgba(168, 85, 247, 0.05)';
+      ctx.fillRect(item.x, item.y, item.w, item.h);
+
+      ctx.fillStyle = isSelected ? '#7E22CE' : '#A855F7';
+      ctx.font = 'bold 12px "Plus Jakarta Sans"';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.label, item.x + item.w / 2, item.y + item.h / 2 + 4);
+      ctx.restore();
+    }
+
+    function drawSelectionFrame(ctx, item) {
+      ctx.save();
+      ctx.strokeStyle = '#A855F7';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      const padding = 4;
+      const left = item.align === 'center' ? item.x - item.w / 2 : (item.align === 'right' ? item.x - item.w : item.x);
+      ctx.strokeRect(left - padding, item.y - item.h + padding, item.w + padding * 2, item.h + padding * 2);
+      ctx.restore();
+    }
+
+    function calculateTextLines(ctx, text, item) {
+      const fontFam = item.fontFamily || '"Plus Jakarta Sans", sans-serif';
+      ctx.save();
+      ctx.font = `${item.fontWeight || '700'} ${item.fontSize || 20}px ${fontFam}`;
+      const rawLines = String(text).split('\n');
+      const finalLines = [];
+      const maxWordsPerLine = item.maxWordsPerLine || 25;
+
+      for (const rawLine of rawLines) {
+        const words = rawLine.trim().split(/\s+/).filter(Boolean);
+        if (words.length === 0) continue;
+
+        let curWords = [];
+        for (let i = 0; i < words.length; i++) {
+          curWords.push(words[i]);
+          const testStr = curWords.join(' ');
+          const testMetrics = ctx.measureText(testStr);
+
+          if (curWords.length >= maxWordsPerLine || (testMetrics.width > item.w && curWords.length > 1)) {
+            if (testMetrics.width > item.w && curWords.length > 1) {
+              const popped = curWords.pop();
+              finalLines.push(curWords.join(' '));
+              curWords = [popped];
+            } else {
+              finalLines.push(curWords.join(' '));
+              curWords = [];
+            }
+          }
+        }
+        if (curWords.length > 0) {
+          finalLines.push(curWords.join(' '));
+        }
+      }
+      ctx.restore();
+
+      const maxLines = item.maxLines || 10;
+      const linesToDraw = finalLines.slice(0, maxLines);
+      const lineHeight = (item.fontSize || 20) * 1.25;
+      const totalHeight = linesToDraw.length * lineHeight;
+      return { lines: linesToDraw, lineHeight, totalHeight, count: linesToDraw.length };
+    }
+
+    function drawLayoutText(ctx, text, item, isPlaceholder = false) {
+      ctx.save();
+      ctx.fillStyle = isPlaceholder ? 'rgba(168, 85, 247, 0.5)' : (item.color || '#111827');
+      const fontFam = item.fontFamily || '"Plus Jakarta Sans", sans-serif';
+      ctx.font = `${item.fontWeight || '700'} ${item.fontSize || 20}px ${fontFam}`;
+      ctx.textAlign = item.align || 'center';
+
+      // Support multi-line from Excel (split by \n first)
+      const rawLines = String(text).split('\n');
+      const finalLines = [];
+      const maxWordsPerLine = item.maxWordsPerLine || 25;
+
+      for (const rawLine of rawLines) {
+        const words = rawLine.trim().split(/\s+/).filter(Boolean);
+        if (words.length === 0) continue;
+
+        let curWords = [];
+        for (let i = 0; i < words.length; i++) {
+          curWords.push(words[i]);
+          const testStr = curWords.join(' ');
+          const testMetrics = ctx.measureText(testStr);
+
+          // Break line if reached max words per line (e.g. 5 words) OR exceeds width (if more than 1 word)
+          if (curWords.length >= maxWordsPerLine || (testMetrics.width > item.w && curWords.length > 1)) {
+            if (testMetrics.width > item.w && curWords.length > 1) {
+              const popped = curWords.pop();
+              finalLines.push(curWords.join(' '));
+              curWords = [popped];
+            } else {
+              finalLines.push(curWords.join(' '));
+              curWords = [];
+            }
+          }
+        }
+        if (curWords.length > 0) {
+          finalLines.push(curWords.join(' '));
+        }
+      }
+
+      // Check maxLines limit: only if explicitly specified and not placeholder, but user requested all text so default to showing all lines
+      const maxLines = item.maxLines || 10;
+      const linesToDraw = finalLines.slice(0, maxLines);
+
+      const lineHeight = (item.fontSize || 20) * 1.25;
+      let curY = item.y;
+
+      for (let i = 0; i < linesToDraw.length; i++) {
+        let lineStr = linesToDraw[i];
+        if (i === linesToDraw.length - 1 && finalLines.length > maxLines) {
+          // In the extreme case of exceeding maxLines cap, append the rest
+          lineStr = finalLines.slice(i).join(' ');
+        }
+        ctx.fillText(lineStr, item.x, curY);
+        curY += lineHeight;
+      }
+      ctx.restore();
+    }
+
+    // Demo Data
+    function getDemoRow() {
+      return {
+        "Mã sản phẩm": "SP01",
+        "Tên sản phẩm": "TINH CHẤT DƯỠNG DA CHUYÊN SÂU\nLIPOSOME DECORTÉ",
+        "Quy cách sản phẩm": "50ML",
+        "Ảnh sản phẩm": "sp_main.png",
+        "Tổng giá quà tặng": "2,998,000đ",
+        "Tên quà 1": "TINH CHẤT DƯỠNG DA",
+        "Quy cách quà 1": "15ML",
+        "Ảnh quà 1": "qua_15ml.png",
+        "Tên quà 2": "KEM DƯỠNG DA",
+        "Quy cách quà 2": "10G",
+        "Ảnh quà 2": "qua_kem1.png",
+        "Tên quà 3": "KEM DƯỠNG DA",
+        "Quy cách quà 3": "10G",
+        "Ảnh quà 3": "qua_kem2.png",
+      };
+    }
+
+    useDemoDataBtn.addEventListener('click', () => {
+      excelRows = [
+        getDemoRow(),
+        {
+          "Mã sản phẩm": "SP02",
+          "Tên sản phẩm": "KEM DƯỠNG PHỤC HỒI & TÁI TẠO\nLIPOSOME ADVANCED CREAM",
+          "Quy cách sản phẩm": "50G",
+          "Ảnh sản phẩm": "sp2.png",
+          "Tổng giá quà tặng": "1,850,000đ",
+          "Tên quà 1": "SERUM PHỤC HỒI",
+          "Quy cách quà 1": "12ML",
+          "Ảnh quà 1": "qua_serum.png",
+          "Tên quà 2": "SỮA RỬA MẶT DỊU NHẸ",
+          "Quy cách quà 2": "30ML",
+          "Ảnh quà 2": "qua_srm.png",
+          "Tên quà 3": "BÔNG TẨY TRANG CAO CẤP",
+          "Quy cách quà 3": "80 MIẾNG",
+          "Ảnh quà 3": "qua_bong.png",
+        }
+      ];
+      currentIndex = 0;
+      updateDataTable();
+      renderCanvas();
+    });
+
+    let tableFilterKeyword = '';
+
+    function updateDataTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      const kw = tableFilterKeyword.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      let visibleCount = 0;
+
+      excelRows.forEach((row, i) => {
+        function getRowField(keys) {
+          for (const k of keys) {
+            const normK = k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            for (const rk of Object.keys(row)) {
+              const normRk = rk.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+              if (normRk === normK || normRk.includes(normK)) return row[rk];
+            }
+          }
+          return '';
+        }
+
+        const pCode = getRowField(['Mã sản phẩm', 'Mã SP', 'SKU']);
+        const pName = getRowField(['Tên sản phẩm', 'Tên SP']);
+        const pSpec = getRowField(['Khối lượng sản phẩm', 'Quy cách sản phẩm', 'Dung tích']);
+        const pTotalGift = getRowField(['Giá trị quà tặng kèm', 'tổng giá trị quà tặng', 'Tổng giá quà tặng', 'Tổng giá quà']);
+        const multiGifts = getRowField(['Tên quà tặng + khối lượng', 'Quà tặng kèm', 'Tên quà 1']);
+
+        // Check search filter match
+        if (kw) {
+          const rowCombinedText = `${pCode} ${pName} ${pSpec} ${multiGifts} ${Object.values(row).join(' ')}`
+            .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          if (!rowCombinedText.includes(kw)) {
+            return; // skip row
+          }
+        }
+
+        visibleCount++;
+        const tr = document.createElement('tr');
+        tr.className = `cursor-pointer hover:bg-purple-50 transition ${i === currentIndex ? 'bg-purple-50 font-semibold' : ''}`;
+        tr.onclick = () => {
+          currentIndex = i;
+          currentRowIndex.textContent = `${currentIndex + 1} / ${excelRows.length}`;
+          updateDataTable();
+          renderCanvas();
+        };
+
+        tr.innerHTML = `
+          <td class="px-2.5 py-2 text-slate-500 font-mono">${i + 1}</td>
+          <td class="px-2.5 py-2 text-slate-900 truncate max-w-[200px]" title="${pName}">
+            <div class="font-medium">${pName || '-'}</div>
+            ${pCode ? `<div class="text-[10px] text-slate-400 font-mono">${pCode}</div>` : ''}
+          </td>
+          <td class="px-2.5 py-2 text-purple-700 font-semibold">${pSpec || '-'}</td>
+          <td class="px-2.5 py-2 text-purple-700 font-bold">${formatVND(pTotalGift) || '-'}</td>
+          <td colspan="4" class="px-2.5 py-2 text-slate-600 truncate max-w-[320px]" title="${multiGifts}">${multiGifts ? multiGifts.replace(/\n/g, ' + ') : '-'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (visibleCount === 0 && excelRows.length > 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">Không tìm thấy sản phẩm nào khớp với từ khóa "${tableFilterKeyword}".</td></tr>`;
+      } else if (excelRows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">Chưa có dữ liệu. Vui lòng tải file Excel hoặc bấm "Tải dữ liệu mẫu thử"</td></tr>`;
+      }
+
+      const countLabel = kw ? `${visibleCount}/${excelRows.length} sản phẩm` : `${excelRows.length} sản phẩm`;
+      document.getElementById('tableRowsCount').textContent = countLabel;
+      document.getElementById('excelStatusBadge').textContent = `${excelRows.length} sản phẩm`;
+      document.getElementById('excelStatusBadge').classList.remove('hidden');
+      currentRowIndex.textContent = `${currentIndex + 1} / ${excelRows.length}`;
+    }
+
+    // Search input listener
+    const searchInput = document.getElementById('tableSearchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    searchInput?.addEventListener('input', (e) => {
+      tableFilterKeyword = e.target.value;
+      if (clearSearchBtn) {
+        if (tableFilterKeyword) clearSearchBtn.classList.remove('hidden');
+        else clearSearchBtn.classList.add('hidden');
+      }
+      updateDataTable();
+    });
+    clearSearchBtn?.addEventListener('click', () => {
+      searchInput.value = '';
+      tableFilterKeyword = '';
+      clearSearchBtn.classList.add('hidden');
+      updateDataTable();
+    });
+
+    // Direct Drag-and-drop Interaction on Canvas
+    function getCanvasCoords(e) {
+      const rect = previewCanvas.getBoundingClientRect();
+      const scaleX = previewCanvas.width / rect.width;
+      const scaleY = previewCanvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    function hitTest(x, y) {
+      // Check in reverse order
+      const keys = Object.keys(layout);
+      for (let i = keys.length - 1; i >= 0; i--) {
+        const key = keys[i];
+        const item = layout[key];
+        if (item.visible === false) continue;
+
+        let left = item.x;
+        let top = item.y;
+        let right = item.x + item.w;
+        let bottom = item.y + item.h;
+
+        if (item.type === 'text') {
+          top = item.y - item.h;
+          bottom = item.y;
+          if (item.align === 'center') {
+            left = item.x - item.w / 2;
+            right = item.x + item.w / 2;
+          } else if (item.align === 'right') {
+            left = item.x - item.w;
+            right = item.x;
+          }
+        }
+
+        if (x >= left && x <= right && y >= top && y <= bottom) {
+          return key;
+        }
+      }
+      return null;
+    }
+
+    previewCanvas.addEventListener('mousedown', (e) => {
+      const pos = getCanvasCoords(e);
+      const hitKey = hitTest(pos.x, pos.y);
+      if (hitKey) {
+        selectedKey = hitKey;
+        selectedLayer.value = hitKey;
+        updateInspector();
+
+        isDragging = true;
+        dragStartX = pos.x;
+        dragStartY = pos.y;
+        dragItemStartX = layout[hitKey].x;
+        dragItemStartY = layout[hitKey].y;
+        renderCanvas();
+      }
+    });
+
+    // Double-click on Canvas: quick file picker for image layers or focus for text
+    previewCanvas.addEventListener('dblclick', (e) => {
+      const pos = getCanvasCoords(e);
+      const hitKey = hitTest(pos.x, pos.y);
+      if (hitKey) {
+        selectedKey = hitKey;
+        selectedLayer.value = hitKey;
+        updateInspector();
+        const item = layout[hitKey];
+        if (item && item.type === 'image' && propImageFileInput) {
+          propImageFileInput.click();
+        } else if (item && item.type === 'text' && propFontSize) {
+          propFontSize.focus();
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const pos = getCanvasCoords(e);
+      const dx = pos.x - dragStartX;
+      const dy = pos.y - dragStartY;
+
+      layout[selectedKey].x = Math.round(dragItemStartX + dx);
+      layout[selectedKey].y = Math.round(dragItemStartY + dy);
+      updateInspector();
+      renderCanvas();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+      }
+    });
+
+    // Navigation
+    prevRowBtn.addEventListener('click', () => {
+      if (excelRows.length === 0) return;
+      currentIndex = (currentIndex - 1 + excelRows.length) % excelRows.length;
+      currentRowIndex.textContent = `${currentIndex + 1} / ${excelRows.length}`;
+      updateDataTable();
+      renderCanvas();
+    });
+
+    nextRowBtn.addEventListener('click', () => {
+      if (excelRows.length === 0) return;
+      currentIndex = (currentIndex + 1) % excelRows.length;
+      currentRowIndex.textContent = `${currentIndex + 1} / ${excelRows.length}`;
+      updateDataTable();
+      renderCanvas();
+    });
+
+    // Download Single Image
+    downloadCurrentBtn.addEventListener('click', () => {
+      const row = excelRows[currentIndex] || getDemoRow();
+      const code = row['Mã sản phẩm'] || `SP_${currentIndex + 1}`;
+      const name = row['Tên sản phẩm'] || 'banner';
+      const safeName = `${code}_${name}`.replace(/[^a-z0-9A-Z_À-ỹ]/g, '_').substring(0, 50);
+      const fileName = `${safeName}_deal${currentIndex + 1}.png`;
+
+      // Render clean without bounding boxes
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = previewCanvas.width;
+      tempCanvas.height = previewCanvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      renderCanvas(tempCtx, true).then(() => {
+        tempCanvas.toBlob((blob) => {
+          saveAs(blob, fileName);
+        }, 'image/png');
+      });
+    });
+
+    // Function to check missing images across all rows
+    async function checkMissingImages() {
+      const missingList = [];
+      const origIdx = currentIndex;
+
+      for (let i = 0; i < excelRows.length; i++) {
+        currentIndex = i;
+        const row = excelRows[i];
+        function getVal(keys) {
+          for (const k of keys) {
+            const normK = k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            for (const rowK of Object.keys(row)) {
+              const normRowK = rowK.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+              if (normRowK === normK || normRowK.includes(normK)) return row[rowK];
+            }
+          }
+          return '';
+        }
+
+        const pCode = getVal(['Mã sản phẩm', 'Mã SP', 'SKU']) || `Dòng ${i + 1}`;
+        const pName = getVal(['Tên sản phẩm', 'Tên SP']) || 'Chưa đặt tên';
+
+        // Check main product image
+        const mainImgKey = getVal(['Ảnh sản phẩm', 'SKU sản phẩm', 'SKU SP', 'SKU', 'Mã sản phẩm', 'Hinh SP']);
+        const loadedMain = await getImageElement(mainImgKey, 'mainProdImg');
+        const missingItems = [];
+        if (!loadedMain && mainImgKey) {
+          missingItems.push(`Ảnh SP (${mainImgKey})`);
+        } else if (!loadedMain) {
+          missingItems.push('Ảnh SP chính');
+        }
+
+        // Check gifts
+        const multiLineNames = getVal(['Tên quà tặng + khối lượng', 'Ten qua tang + khoi luong', 'Tên quà tặng', 'Quà tặng kèm']);
+        const multiLineSkus = getVal(['SKU quà tặng', 'SKU QUÀ', 'SKU qua']);
+        if (multiLineNames && String(multiLineNames).includes('\n')) {
+          const skuLines = String(multiLineSkus || '').split('\n').map(s => s.trim()).filter(Boolean);
+          for (let g = 0; g < skuLines.length; g++) {
+            const gSku = skuLines[g];
+            const loadedG = await getImageElement(gSku, `gift${g + 1}Img`);
+            if (!loadedG && gSku) missingItems.push(`Quà ${g + 1} (${gSku})`);
+          }
+        } else {
+          for (let g = 1; g <= 4; g++) {
+            const gSku = getVal([`Ảnh quà ${g}`, `Anh qua ${g}`, `SKU quà ${g}`, `Mã quà ${g}`, `Hình quà ${g}`, `SKU QUÀ ${g}`]);
+            const gName = getVal([`Tên quà ${g}`, `Ten qua ${g}`]);
+            if (gSku || gName) {
+              const loadedG = await getImageElement(gSku, `gift${g}Img`);
+              if (!loadedG && gSku) missingItems.push(`Quà ${g} (${gSku})`);
+            }
+          }
+        }
+
+        if (missingItems.length > 0) {
+          missingList.push({
+            index: i,
+            pCode,
+            pName,
+            missingItems
+          });
+        }
+      }
+
+      currentIndex = origIdx;
+      return missingList;
+    }
+
+    async function executeActualBatchExport() {
+      batchExportBtn.disabled = true;
+      const progressWrap = document.getElementById('exportProgressWrapper');
+      const progressBar = document.getElementById('exportProgressBar');
+      const progressText = document.getElementById('exportProgressText');
+      const progressPercent = document.getElementById('exportProgressPercent');
+
+      progressWrap.classList.remove('hidden');
+      const zip = new JSZip();
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = previewCanvas.width;
+      tempCanvas.height = previewCanvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      const originalIndex = currentIndex;
+
+      for (let i = 0; i < excelRows.length; i++) {
+        currentIndex = i;
+        progressText.textContent = `Đang xuất ảnh: ${i + 1}/${excelRows.length}`;
+        const pct = Math.round(((i + 1) / excelRows.length) * 100);
+        progressPercent.textContent = `${pct}%`;
+        progressBar.style.width = `${pct}%`;
+
+        await renderCanvas(tempCtx, true);
+
+        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.94);
+        const base64Data = dataUrl.split(',')[1];
+
+        const row = excelRows[i];
+        const code = row['Mã sản phẩm'] || `SP_${i + 1}`;
+        const name = row['Tên sản phẩm'] || 'banner';
+        const safeName = `${code}_${name}`.replace(/[^a-z0-9A-Z_À-ỹ]/g, '_').substring(0, 55);
+        const orderNum = String(i + 1).padStart(2, '0');
+        const fileName = `${safeName}_${orderNum}.jpg`;
+
+        zip.file(fileName, base64Data, { base64: true });
+      }
+
+      currentIndex = originalIndex;
+      renderCanvas();
+
+      progressText.textContent = 'Đang đóng gói file ZIP...';
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `bo_anh_khuyen_mai_${new Date().toISOString().slice(0, 10)}.zip`);
+
+      progressText.textContent = `Hoàn tất xuất ${excelRows.length} ảnh!`;
+      setTimeout(() => {
+        batchExportBtn.disabled = false;
+        progressWrap.classList.add('hidden');
+      }, 3000);
+    }
+
+    // Batch Export ZIP with Missing Image QA Check
+    batchExportBtn.addEventListener('click', async () => {
+      if (excelRows.length === 0) {
+        alert('Vui lòng nạp file Excel trước khi xuất ảnh hàng loạt!');
+        return;
+      }
+
+      batchExportBtn.disabled = true;
+      batchExportBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>Đang kiểm tra ảnh...</span>';
+      lucide.createIcons();
+
+      const missing = await checkMissingImages();
+
+      batchExportBtn.disabled = false;
+      batchExportBtn.innerHTML = '<i data-lucide="download-cloud" class="w-5 h-5"></i><span>Xuất tất cả ảnh (Tải file ZIP)</span>';
+      lucide.createIcons();
+
+      if (missing.length > 0) {
+        // Show missing QA modal
+        const modal = document.getElementById('missingImagesModal');
+        const countSpan = document.getElementById('missingModalCount');
+        const listDiv = document.getElementById('missingModalList');
+        
+        countSpan.textContent = `${missing.length}`;
+        listDiv.innerHTML = '';
+
+        missing.forEach(item => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'px-3 py-2 flex items-center justify-between hover:bg-slate-50 transition';
+          rowEl.innerHTML = `
+            <div class="truncate max-w-[260px]">
+              <span class="font-bold text-slate-800">#${item.index + 1} - ${item.pCode}</span>
+              <div class="text-[10px] text-slate-500 truncate" title="${item.pName}">${item.pName}</div>
+            </div>
+            <div class="text-right">
+              <span class="text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[10px] font-semibold">${item.missingItems.join(', ')}</span>
+            </div>
+          `;
+          listDiv.appendChild(rowEl);
+        });
+
+        modal.classList.remove('hidden');
+
+        // Hook continue / cancel
+        document.getElementById('cancelExportMissingBtn').onclick = () => {
+          modal.classList.add('hidden');
+        };
+        document.getElementById('closeMissingModalBtn').onclick = () => {
+          modal.classList.add('hidden');
+        };
+        document.getElementById('continueExportMissingBtn').onclick = () => {
+          modal.classList.add('hidden');
+          executeActualBatchExport();
+        };
+      } else {
+        // No missing images, proceed directly
+        executeActualBatchExport();
+      }
+    });
+
+    // Sample Excel Download
+    downloadSampleExcelBtn.addEventListener('click', () => {
+      const sample = [
+        {
+          "Mã sản phẩm": "SP01",
+          "Tên sản phẩm": "TINH CHẤT DƯỠNG DA CHUYÊN SÂU\nLIPOSOME DECORTÉ",
+          "Quy cách sản phẩm": "50ML",
+          "Ảnh sản phẩm": "sp_serum.png",
+          "Tổng giá quà tặng": "2998000",
+          "Tên quà 1": "TINH CHẤT DƯỠNG DA",
+          "Quy cách quà 1": "15ML",
+          "Ảnh quà 1": "qua_15ml.png",
+          "Tên quà 2": "KEM DƯỠNG DA",
+          "Quy cách quà 2": "10G",
+          "Ảnh quà 2": "qua_kem1.png",
+          "Tên quà 3": "KEM DƯỠNG DA",
+          "Quy cách quà 3": "10G",
+          "Ảnh quà 3": "qua_kem2.png",
+          "Tên quà 4": "",
+          "Quy cách quà 4": "",
+          "Ảnh quà 4": ""
+        },
+        {
+          "Mã sản phẩm": "SP02",
+          "Tên sản phẩm": "KEM DƯỠNG PHỤC HỒI BAN ĐÊM\nDECORTÉ LIPOSOME CREAM",
+          "Quy cách sản phẩm": "50G",
+          "Ảnh sản phẩm": "sp_cream.png",
+          "Tổng giá quà tặng": "1950000",
+          "Tên quà 1": "NƯỚC THẦN PHỤC HỒI",
+          "Quy cách quà 1": "30ML",
+          "Ảnh quà 1": "qua_nuocthan.png",
+          "Tên quà 2": "SỮA RỬA MẶT DƯỠNG ẨM",
+          "Quy cách quà 2": "20ML",
+          "Ảnh quà 2": "qua_srm.png",
+          "Tên quà 3": "",
+          "Quy cách quà 3": "",
+          "Ảnh quà 3": "",
+          "Tên quà 4": "",
+          "Quy cách quà 4": "",
+          "Ảnh quà 4": ""
+        },
+        {
+          "Mã sản phẩm": "SP03",
+          "Tên sản phẩm": "PHẤN PHỦ DECORTÉ BỘ 4 MÀU 101",
+          "Quy cách sản phẩm": "16G",
+          "Ảnh sản phẩm": "sp_powder.png",
+          "Tổng giá quà tặng": "3500000",
+          "Tên quà 1": "SERUM PHỤC HỒI",
+          "Quy cách quà 1": "15ML",
+          "Ảnh quà 1": "qua_15ml.png",
+          "Tên quà 2": "LOTION DƯỠNG ẨM",
+          "Quy cách quà 2": "14ML",
+          "Ảnh quà 2": "qua_lotion.png",
+          "Tên quà 3": "KEM DƯỠNG NGĂN LÃO HÓA",
+          "Quy cách quà 3": "10G",
+          "Ảnh quà 3": "qua_kem1.png",
+          "Tên quà 4": "PHẤN PHỦ SAMPLE MINI",
+          "Quy cách quà 4": "1.5G",
+          "Ảnh quà 4": "qua_powder_mini.png"
+        },
+        {
+          "Mã sản phẩm": "SP04",
+          "Tên sản phẩm": "KEM CHỐNG NẮNG BẢO VỆ DA DECORTÉ",
+          "Quy cách sản phẩm": "35G",
+          "Ảnh sản phẩm": "sp_sunscreen.png",
+          "Tổng giá quà tặng": "850000",
+          "Tên quà 1": "SỮA RỬA MẶT DƯỠNG ẨM",
+          "Quy cách quà 1": "30ML",
+          "Ảnh quà 1": "qua_srm.png",
+          "Tên quà 2": "",
+          "Quy cách quà 2": "",
+          "Ảnh quà 2": "",
+          "Tên quà 3": "",
+          "Quy cách quà 3": "",
+          "Ảnh quà 3": "",
+          "Tên quà 4": "",
+          "Quy cách quà 4": "",
+          "Ảnh quà 4": ""
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(sample);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "DanhSachSP");
+      XLSX.writeFile(wb, "file_mau_san_pham_va_qua_tang.xlsx");
+    });
+
+    // Auto-load user's actual 10 products dataset immediately upon page load
+    try {
+      if (typeof parseExcelText === 'function') {
+        const initialData = parseExcelText(USER_ACTUAL_DECORTE_DATA);
+        if (initialData && initialData.length > 0) {
+          excelRows = initialData;
+          currentIndex = 0;
+          updateDataTable();
+          setTimeout(() => {
+            renderCanvas();
+          }, 200);
+        }
+      }
+    } catch (e) {
+      console.warn("Auto load error:", e);
+    }
+
+    // Initial setup
+    updateInspector();
+  </script>
+
+  <!-- Modal Cảnh Báo Thiếu Ảnh Trước Khi Xuất ZIP -->
+  <div id="missingImagesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
+      <div class="bg-amber-500 text-white px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="alert-triangle" class="w-6 h-6 text-white"></i>
+          <h3 class="font-bold text-base">Cảnh báo: Phát hiện sản phẩm thiếu ảnh!</h3>
+        </div>
+        <button id="closeMissingModalBtn" class="text-white/80 hover:text-white text-lg font-bold">✕</button>
+      </div>
+
+      <div class="p-5 flex-1 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Hệ thống phát hiện có <strong id="missingModalCount" class="text-amber-600 font-bold">0</strong> sản phẩm trong file Excel chưa khớp được ảnh (ảnh sản phẩm chính hoặc quà tặng). Nếu xuất ảnh ngay, các vị trí này sẽ bị để trống.
+        </p>
+
+        <div class="border border-slate-200 rounded-xl overflow-hidden text-xs">
+          <div class="bg-slate-100 font-semibold text-slate-700 px-3 py-2 flex justify-between">
+            <span>Dòng / Sản phẩm</span>
+            <span>Mục thiếu ảnh</span>
+          </div>
+          <div id="missingModalList" class="divide-y divide-slate-100 max-h-52 overflow-y-auto">
+            <!-- Dynamic Items -->
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-start space-x-2">
+          <i data-lucide="info" class="w-4 h-4 text-blue-600 mt-0.5 shrink-0"></i>
+          <span><strong>Mẹo:</strong> Bạn có thể bấm <strong>"Dừng lại để nạp thêm ảnh"</strong>, hoặc chọn <strong>"Vẫn xuất tất cả"</strong> nếu các quà tặng đó không cần hiển thị hình.</span>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex items-center justify-end space-x-3">
+        <button id="cancelExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition">
+          Dừng lại để nạp thêm ảnh
+        </button>
+        <button id="continueExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md shadow-amber-200 transition">
+          Vẫn tiếp tục xuất ZIP
+        </button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

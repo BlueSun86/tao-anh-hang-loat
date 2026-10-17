@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<body>
+<div id="result"></div>
+<script>
+window.onerror = function(e) {
+  document.getElementById("result").innerText = "JS ERROR: " + e;
+};
+</script>
+<script src="index.html"></script>
+</body>
+</html>
