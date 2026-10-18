@@ -36,6 +36,19 @@
       </div>
 
       <div class="flex items-center space-x-2">
+        <!-- Credit Wallet Badge & Recharge Button -->
+        <div class="flex items-center bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5 space-x-2 shadow-xs mr-1">
+          <div class="flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-xs font-semibold text-purple-900">Ví lượt:</span>
+            <span id="userCreditDisplay" class="text-xs font-extrabold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200">10 ⭐</span>
+          </div>
+          <button id="openRechargeModalBtn" class="inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs transition">
+            <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 fill-white"></i>
+            Nạp Lượt
+          </button>
+        </div>
+
         <button id="downloadSampleExcelBtn" class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition">
           <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-1.5 text-emerald-600"></i>
           File Excel Mẫu
@@ -2115,6 +2128,8 @@
     const downloadCurrentSvgBtn = document.getElementById('downloadCurrentSvgBtn');
     if (downloadCurrentSvgBtn) {
       downloadCurrentSvgBtn.addEventListener('click', async () => {
+        if (!checkAndDeductCredits(1, 'xuất 1 file vector SVG')) return;
+
         const row = excelRows[currentIndex] || getDemoRow();
         const code = row['Mã sản phẩm'] || `SP_${currentIndex + 1}`;
         const name = row['Tên sản phẩm'] || 'banner';
@@ -2141,6 +2156,8 @@
     }
 
     downloadCurrentBtn.addEventListener('click', () => {
+      if (!checkAndDeductCredits(1, 'tải 1 ảnh PNG')) return;
+
       const row = excelRows[currentIndex] || getDemoRow();
       const code = row['Mã sản phẩm'] || `SP_${currentIndex + 1}`;
       const name = row['Tên sản phẩm'] || 'banner';
@@ -2540,6 +2557,11 @@
         return;
       }
 
+      const totalNeeded = excelRows.length;
+      if (!checkAndDeductCredits(totalNeeded, `xuất hàng loạt ${totalNeeded} ảnh ZIP`)) {
+        return;
+      }
+
       batchExportBtn.disabled = true;
       batchExportBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>Đang kiểm tra ảnh...</span>';
       lucide.createIcons();
@@ -2697,6 +2719,192 @@
       console.warn("Auto load error:", e);
     }
 
+    // =========================================================================
+    // HỆ THỐNG VÍ LƯỢT XUẤT (CREDIT WALLET) & THANH TOÁN VIETQR TECHCOMBANK
+    // =========================================================================
+    const BANK_CONFIG = {
+      bankId: 'TCB',             // Techcombank mã Napas
+      accountNo: '19024783001011',
+      accountName: 'NGUYEN VAN THU',
+      plans: [
+        { id: 'plan_starter', name: 'Khởi động', credits: 50, price: 29000, desc: '580đ / ảnh' },
+        { id: 'plan_standard', name: 'Phổ thông ⭐', credits: 150, price: 69000, desc: '460đ / ảnh (Khuyên dùng)' },
+        { id: 'plan_pro', name: 'Siêu hời', credits: 500, price: 149000, desc: '298đ / ảnh' },
+      ]
+    };
+
+    // User ID & Credits in LocalStorage (chuẩn bị kết nối Supabase)
+    let currentUserId = localStorage.getItem('user_id');
+    if (!currentUserId) {
+      currentUserId = 'user_' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      localStorage.setItem('user_id', currentUserId);
+    }
+
+    let userCredits = parseInt(localStorage.getItem('user_credits') || '10', 10);
+    const userCreditDisplay = document.getElementById('userCreditDisplay');
+
+    function updateUserCreditUI() {
+      if (userCreditDisplay) {
+        userCreditDisplay.textContent = `${userCredits} ⭐`;
+      }
+      localStorage.setItem('user_credits', userCredits.toString());
+    }
+    updateUserCreditUI();
+
+    function checkAndDeductCredits(requiredCredits, actionName = 'xuất ảnh') {
+      if (userCredits >= requiredCredits) {
+        userCredits -= requiredCredits;
+        updateUserCreditUI();
+        return true;
+      }
+
+      // Not enough credits -> Show Recharge Modal
+      openRechargeModal(requiredCredits, actionName);
+      return false;
+    }
+
+    // Modal elements
+    const rechargeModal = document.getElementById('rechargeModal');
+    const closeRechargeModalBtn = document.getElementById('closeRechargeModalBtn');
+    const openRechargeModalBtn = document.getElementById('openRechargeModalBtn');
+    const rechargeWarningBox = document.getElementById('rechargeWarningBox');
+    const rechargeWarningText = document.getElementById('rechargeWarningText');
+    const vietQrImg = document.getElementById('vietQrImg');
+    const qrAmountText = document.getElementById('qrAmountText');
+    const qrTransferContent = document.getElementById('qrTransferContent');
+    const copyContentBtn = document.getElementById('copyContentBtn');
+    const copyAmountBtn = document.getElementById('copyAmountBtn');
+    const plansContainer = document.getElementById('plansContainer');
+    const qrLoadingSpinner = document.getElementById('qrLoadingSpinner');
+    const paymentSuccessBox = document.getElementById('paymentSuccessBox');
+    const paymentSuccessCredits = document.getElementById('paymentSuccessCredits');
+
+    let selectedPlan = BANK_CONFIG.plans[1]; // Mặc định gói Phổ thông 69k
+    let checkPaymentInterval = null;
+
+    function renderPricingPlans() {
+      if (!plansContainer) return;
+      plansContainer.innerHTML = '';
+
+      BANK_CONFIG.plans.forEach(plan => {
+        const isSelected = plan.id === selectedPlan.id;
+        const planCard = document.createElement('div');
+        planCard.className = `p-3 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+          isSelected 
+            ? 'border-purple-600 bg-purple-50/70 shadow-sm' 
+            : 'border-slate-200 hover:border-purple-300 bg-white'
+        }`;
+        planCard.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-xs ${isSelected ? 'text-purple-800' : 'text-slate-800'}">${plan.name}</span>
+            <span class="text-[11px] font-extrabold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded-md">+${plan.credits} ⭐</span>
+          </div>
+          <div class="mt-2">
+            <div class="text-sm font-extrabold text-slate-900">${plan.price.toLocaleString('vi-VN')}đ</div>
+            <div class="text-[10px] text-slate-500">${plan.desc}</div>
+          </div>
+        `;
+        planCard.addEventListener('click', () => {
+          selectedPlan = plan;
+          renderPricingPlans();
+          generateVietQrCode();
+        });
+        plansContainer.appendChild(planCard);
+      });
+    }
+
+    function generateVietQrCode() {
+      if (!vietQrImg) return;
+      // Cú pháp nội dung: NAP [MÃ_USER] [MÃ_GÓI]
+      const transferContent = `NAP ${currentUserId}`;
+      qrTransferContent.textContent = transferContent;
+      qrAmountText.textContent = `${selectedPlan.price.toLocaleString('vi-VN')} đ`;
+
+      // Tạo URL VietQR chuẩn Napas 247
+      const qrUrl = `https://img.vietqr.io/image/${BANK_CONFIG.bankId}-${BANK_CONFIG.accountNo}-compact2.png?amount=${selectedPlan.price}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(BANK_CONFIG.accountName)}`;
+
+      qrLoadingSpinner.classList.remove('hidden');
+      vietQrImg.classList.add('opacity-30');
+
+      const img = new Image();
+      img.onload = () => {
+        vietQrImg.src = qrUrl;
+        qrLoadingSpinner.classList.add('hidden');
+        vietQrImg.classList.remove('opacity-30');
+      };
+      img.src = qrUrl;
+    }
+
+    function openRechargeModal(required = null, actionName = null) {
+      if (rechargeModal) {
+        if (paymentSuccessBox) paymentSuccessBox.classList.add('hidden');
+        if (required && actionName) {
+          rechargeWarningBox.classList.remove('hidden');
+          rechargeWarningText.innerHTML = `Bạn đang cần <strong>${required} lượt</strong> để ${actionName}, nhưng số dư hiện tại còn <strong>${userCredits} lượt</strong>. Hãy nạp thêm lượt để tiếp tục!`;
+        } else {
+          rechargeWarningBox.classList.add('hidden');
+        }
+
+        renderPricingPlans();
+        generateVietQrCode();
+        rechargeModal.classList.remove('hidden');
+        lucide.createIcons();
+
+        // Giả lập lắng nghe kiểm tra giao dịch tự động
+        startCheckingPayment();
+      }
+    }
+
+    function closeRechargeModal() {
+      if (rechargeModal) {
+        rechargeModal.classList.add('hidden');
+        if (checkPaymentInterval) clearInterval(checkPaymentInterval);
+      }
+    }
+
+    if (openRechargeModalBtn) {
+      openRechargeModalBtn.addEventListener('click', () => openRechargeModal());
+    }
+    if (closeRechargeModalBtn) {
+      closeRechargeModalBtn.addEventListener('click', closeRechargeModal);
+    }
+
+    // Sao chép nội dung & số tiền
+    if (copyContentBtn) {
+      copyContentBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(qrTransferContent.textContent.trim());
+        copyContentBtn.textContent = 'Đã chép!';
+        setTimeout(() => copyContentBtn.textContent = 'Sao chép', 2000);
+      });
+    }
+    if (copyAmountBtn) {
+      copyAmountBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(selectedPlan.price.toString());
+        copyAmountBtn.textContent = 'Đã chép!';
+        setTimeout(() => copyAmountBtn.textContent = 'Sao chép', 2000);
+      });
+    }
+
+    // Cơ chế lắng nghe thanh toán
+    function startCheckingPayment() {
+      if (checkPaymentInterval) clearInterval(checkPaymentInterval);
+      // Khi tích hợp SePay API: setInterval gọi SePay kiểm tra giao dịch có nội dung `NAP ${currentUserId}`
+    }
+
+    // Hỗ trợ kiểm thử hoặc test nạp thành công ngay trên modal
+    window.simulateDepositSuccess = function(addCredits = null) {
+      const added = addCredits || selectedPlan.credits;
+      userCredits += added;
+      updateUserCreditUI();
+      if (paymentSuccessBox) {
+        paymentSuccessCredits.textContent = `+${added} ⭐`;
+        paymentSuccessBox.classList.remove('hidden');
+      }
+      setTimeout(() => {
+        closeRechargeModal();
+      }, 2500);
+    };
+
     // Initial setup
     updateInspector();
   </script>
@@ -2741,6 +2949,129 @@
           Vẫn tiếp tục xuất ZIP
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal Nạp Lượt Qua VietQR Techcombank -->
+  <div id="rechargeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+            <i data-lucide="zap" class="w-5 h-5 fill-amber-300 text-amber-300"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Nạp Lượt Xuất Banner (VietQR)</h3>
+            <p class="text-[11px] text-purple-200">Quét mã chuyển khoản tự động - Nhận lượt tức thì</p>
+          </div>
+        </div>
+        <button id="closeRechargeModalBtn" class="text-white/80 hover:text-white text-xl font-bold p-1">✕</button>
+      </div>
+
+      <!-- Warning Box if triggered by not enough credits -->
+      <div id="rechargeWarningBox" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3 text-xs text-amber-900 flex items-center space-x-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0"></i>
+        <span id="rechargeWarningText">Số dư lượt xuất của bạn không đủ để thực hiện thao tác.</span>
+      </div>
+
+      <!-- Payment Success Alert -->
+      <div id="paymentSuccessBox" class="hidden bg-emerald-500 text-white px-6 py-3 text-xs font-bold flex items-center justify-between animate-bounce">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+          <span>Thanh toán thành công! Bạn đã được cộng thêm <strong id="paymentSuccessCredits" class="underline">+0 ⭐</strong></span>
+        </div>
+        <span class="text-[11px] bg-white/20 px-2 py-0.5 rounded">Đang cập nhật...</span>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 overflow-y-auto max-h-[75vh] custom-scrollbar">
+        
+        <!-- Left: Plan Selection (6 Cols) -->
+        <div class="md:col-span-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">1. Chọn gói lượt xuất:</label>
+            <div id="plansContainer" class="grid grid-cols-1 gap-2.5">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 space-y-2">
+            <div class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+              <span>Cam kết dịch vụ:</span>
+            </div>
+            <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-500">
+              <li>Lượt xuất không có thời hạn sử dụng.</li>
+              <li>Xuất ảnh HD sắc nét, đầy đủ định dạng SVG/PNG/JPG.</li>
+              <li>Hỗ trợ kỹ thuật 24/7 khi gặp sự cố.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Right: VietQR Code (6 Cols) -->
+        <div class="md:col-span-6 flex flex-col items-center justify-center bg-slate-50/80 border border-slate-200 rounded-2xl p-4 text-center relative">
+          <div class="text-xs font-bold text-slate-700 mb-2 flex items-center space-x-1">
+            <span>2. Quét mã VietQR (Techcombank)</span>
+          </div>
+
+          <!-- QR Container -->
+          <div class="relative bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 w-52 h-52 flex items-center justify-center">
+            <div id="qrLoadingSpinner" class="absolute inset-0 flex items-center justify-center bg-white/90 rounded-2xl z-10">
+              <i data-lucide="loader-2" class="w-7 h-7 text-purple-600 animate-spin"></i>
+            </div>
+            <img id="vietQrImg" src="" alt="Mã VietQR" class="w-full h-full object-contain rounded-xl transition duration-300">
+          </div>
+
+          <!-- Bank Account Info -->
+          <div class="w-full mt-3 space-y-1.5 text-xs text-left bg-white p-3 rounded-xl border border-slate-200">
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Ngân hàng:</span>
+              <span class="font-bold text-slate-800">Techcombank</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Chủ TK:</span>
+              <span class="font-bold text-slate-800">NGUYEN VAN THU</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Số TK:</span>
+              <span class="font-mono font-bold text-purple-700">19024783001011</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
+              <span class="text-slate-500">Số tiền:</span>
+              <div class="flex items-center space-x-1">
+                <span id="qrAmountText" class="font-bold text-slate-900 text-xs">69.000 đ</span>
+                <button id="copyAmountBtn" class="text-[10px] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-slate-600 transition font-medium">Sao chép</button>
+              </div>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Nội dung CK:</span>
+              <div class="flex items-center space-x-1">
+                <span id="qrTransferContent" class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">NAP ...</span>
+                <button id="copyContentBtn" class="text-[10px] bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded text-purple-700 transition font-medium">Sao chép</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2 text-[10px] text-slate-400">
+            Mở bất kỳ App Ngân hàng hoặc MoMo để quét mã
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div class="flex items-center space-x-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Tự động kích hoạt sau khi chuyển tiền (2 - 5s)</span>
+        </div>
+        <button onclick="window.simulateDepositSuccess()" class="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline">
+          [Thử nghiệm: Giả lập Nạp Ngay]
+        </button>
+      </div>
+
     </div>
   </div>
 
