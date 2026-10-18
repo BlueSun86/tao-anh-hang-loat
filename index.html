@@ -2195,7 +2195,7 @@
           cx.drawImage(bgImage, 0, 0, W, H);
           return c.toDataURL('image/jpeg', 0.95);
         })();
-        svgParts.push(`  <image href="${bgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/>`);
+        svgParts.push(`  <image href="${bgData}" xlink:href="${bgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/>`);
       } else {
         svgParts.push(`  <rect x="0" y="0" width="${W}" height="${H}" fill="#E9D5FF"/>`);
       }
@@ -2315,7 +2315,7 @@
             imgDataUrl = tempC.toDataURL('image/png');
           }
 
-          svgParts.push(`  <image href="${imgDataUrl}" x="${Math.round(drawX)}" y="${Math.round(drawY)}" width="${Math.round(drawW)}" height="${Math.round(drawH)}" preserveAspectRatio="none"/>`);
+          svgParts.push(`  <image href="${imgDataUrl}" xlink:href="${imgDataUrl}" x="${Math.round(drawX)}" y="${Math.round(drawY)}" width="${Math.round(drawW)}" height="${Math.round(drawH)}" preserveAspectRatio="none"/>`);
         }
       }
 
