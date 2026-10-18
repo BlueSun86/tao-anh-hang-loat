@@ -2885,10 +2885,70 @@
       });
     }
 
-    // Cơ chế lắng nghe thanh toán
+    // Cấu hình SePay API
+    const SEPAY_API_KEY = 'Z7Q9WLUC8LV1HUXXBNBZLVEO38U9XSDO6NGFG0F5RRSB6H0IODIVSTFNKZY1MWMR';
+    let processedTxIds = JSON.parse(localStorage.getItem('processed_tx_ids') || '[]');
+
+    // Cơ chế lắng nghe thanh toán tự động qua SePay
     function startCheckingPayment() {
       if (checkPaymentInterval) clearInterval(checkPaymentInterval);
-      // Khi tích hợp SePay API: setInterval gọi SePay kiểm tra giao dịch có nội dung `NAP ${currentUserId}`
+      
+      const targetContent = `NAP ${currentUserId}`.toUpperCase();
+      const minAmount = selectedPlan.price;
+
+      async function pollSepayTransactions() {
+        try {
+          const res = await fetch('https://my.sepay.vn/userapi/transactions/list?limit=20', {
+            headers: {
+              'Authorization': `Bearer ${SEPAY_API_KEY}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (!res.ok) return;
+
+          const data = await res.json();
+          if (data && data.transactions && Array.isArray(data.transactions)) {
+            for (const tx of data.transactions) {
+              const txId = String(tx.id);
+              if (processedTxIds.includes(txId)) continue;
+
+              const content = (tx.transaction_content || tx.description || '').toUpperCase();
+              const amountIn = parseFloat(tx.amount_in || tx.amount || 0);
+
+              // Kiểm tra xem giao dịch có khớp mã người dùng không
+              if (content.includes(targetContent) && amountIn >= minAmount) {
+                // Đánh dấu đã xử lý
+                processedTxIds.push(txId);
+                localStorage.setItem('processed_tx_ids', JSON.stringify(processedTxIds));
+
+                // Cộng lượt
+                const addedCredits = selectedPlan.credits;
+                userCredits += addedCredits;
+                updateUserCreditUI();
+
+                if (checkPaymentInterval) clearInterval(checkPaymentInterval);
+
+                if (paymentSuccessBox) {
+                  paymentSuccessCredits.textContent = `+${addedCredits} ⭐`;
+                  paymentSuccessBox.classList.remove('hidden');
+                }
+
+                // Tự động đóng modal sau 3 giây
+                setTimeout(() => {
+                  closeRechargeModal();
+                }, 3000);
+                break;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Lỗi kiểm tra SePay:', err);
+        }
+      }
+
+      // Kiểm tra ngay lập tức và sau đó mỗi 4 giây
+      pollSepayTransactions();
+      checkPaymentInterval = setInterval(pollSepayTransactions, 4000);
     }
 
     // Hỗ trợ kiểm thử hoặc test nạp thành công ngay trên modal
