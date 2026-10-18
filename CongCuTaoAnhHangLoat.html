@@ -360,6 +360,24 @@
 
       <!-- Step 4: Batch Export -->
       <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
+          <span class="font-semibold text-slate-700">Định dạng file ZIP:</span>
+          <div class="flex items-center space-x-2">
+            <label class="flex items-center space-x-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+              <input type="radio" name="exportFormat" value="jpg" checked class="text-purple-600">
+              <span>JPG</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+              <input type="radio" name="exportFormat" value="png" class="text-purple-600">
+              <span>PNG</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer font-bold text-purple-700 text-[11px]" title="File Vector SVG nét căng, text sắc nét">
+              <input type="radio" name="exportFormat" value="svg" class="text-purple-600">
+              <span>SVG ⭐</span>
+            </label>
+          </div>
+        </div>
+
         <button id="batchExportBtn" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-purple-200 transition flex items-center justify-center space-x-2">
           <i data-lucide="download-cloud" class="w-5 h-5"></i>
           <span>Xuất tất cả ảnh (Tải file ZIP)</span>
@@ -396,8 +414,11 @@
             <button id="nextRowBtn" class="p-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600" title="Dòng sau">
               <i data-lucide="chevron-right" class="w-4 h-4"></i>
             </button>
-            <button id="downloadCurrentBtn" class="ml-2 inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition">
-              <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i> Tải ảnh này
+            <button id="downloadCurrentBtn" class="ml-2 inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition" title="Tải ảnh PNG độ nét cao">
+              <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i> Tải PNG
+            </button>
+            <button id="downloadCurrentSvgBtn" class="inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-sm transition" title="Tải file vector SVG (chữ giữ nguyên văn bản nét căng, có thể mở trong Illustrator/Canva/Figma)">
+              <i data-lucide="file-code" class="w-3.5 h-3.5 mr-1"></i> Tải SVG
             </button>
           </div>
         </div>
@@ -456,10 +477,10 @@
 
     // Default template coordinates based on HannahOlala x Decorté Sample Image (1024 x 1024)
     const DEFAULT_LAYOUT = {
-      // Main Product (Grounded on left glass podium at Y = 705)
-      mainProdImg: { label: "Ảnh Sản phẩm chính", type: "image", x: 95, y: 310, w: 310, h: 395, visible: true },
+      // Main Product (Grounded on left glass podium at Y = 705, centered at X = 280)
+      mainProdImg: { label: "Ảnh Sản phẩm chính", type: "image", x: 125, y: 310, w: 310, h: 395, visible: true },
       mainProdName: { label: "Tên Sản phẩm chính", type: "text", x: 512, y: 220, w: 920, h: 80, fontSize: 26, fontWeight: "800", color: "#111827", align: "center", maxLines: 5, maxWordsPerLine: 20, visible: true },
-      mainProdSpec: { label: "Quy cách SP chính", type: "text", x: 250, y: 740, w: 120, h: 30, fontSize: 20, fontWeight: "800", color: "#7C3AED", align: "center", maxLines: 1, visible: true },
+      mainProdSpec: { label: "Quy cách SP chính", type: "text", x: 280, y: 740, w: 120, h: 30, fontSize: 20, fontWeight: "800", color: "#7C3AED", align: "center", maxLines: 1, visible: true },
 
       // Total Gift Price Banner
       giftTotalBanner: { label: "Tổng giá trị quà", type: "text", x: 635, y: 418, w: 230, h: 40, fontSize: 34, fontWeight: "900", color: "#6D28D9", align: "center", maxLines: 1, visible: true },
@@ -1623,7 +1644,7 @@
           const gap = Number(document.getElementById('specGapInput')?.value) || 20;
           renderItem = Object.assign({}, item, {
             x: mainProdRenderedBounds.centerX,
-            y: Math.min(800, mainProdRenderedBounds.bottomY + gap)
+            y: Math.min(1010, mainProdRenderedBounds.bottomY + gap)
           });
         }
 
@@ -2089,6 +2110,36 @@
     });
 
     // Download Single Image
+    
+    // Download Single SVG Button
+    const downloadCurrentSvgBtn = document.getElementById('downloadCurrentSvgBtn');
+    if (downloadCurrentSvgBtn) {
+      downloadCurrentSvgBtn.addEventListener('click', async () => {
+        const row = excelRows[currentIndex] || getDemoRow();
+        const code = row['Mã sản phẩm'] || `SP_${currentIndex + 1}`;
+        const name = row['Tên sản phẩm'] || 'banner';
+        const safeName = `${code}_${name}`.replace(/[^a-z0-9A-Z_À-ỹ]/g, '_').substring(0, 50);
+        const fileName = `${safeName}_deal${currentIndex + 1}.svg`;
+
+        downloadCurrentSvgBtn.disabled = true;
+        downloadCurrentSvgBtn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 mr-1 animate-spin"></i> Đang tạo SVG...';
+        lucide.createIcons();
+
+        try {
+          const svgContent = await generateCurrentSVG();
+          const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+          saveAs(blob, fileName);
+        } catch (err) {
+          console.error('Lỗi khi xuất SVG:', err);
+          alert('Không thể xuất file SVG: ' + err.message);
+        } finally {
+          downloadCurrentSvgBtn.disabled = false;
+          downloadCurrentSvgBtn.innerHTML = '<i data-lucide="file-code" class="w-3.5 h-3.5 mr-1"></i> Tải SVG';
+          lucide.createIcons();
+        }
+      });
+    }
+
     downloadCurrentBtn.addEventListener('click', () => {
       const row = excelRows[currentIndex] || getDemoRow();
       const code = row['Mã sản phẩm'] || `SP_${currentIndex + 1}`;
@@ -2107,6 +2158,247 @@
         }, 'image/png');
       });
     });
+
+    
+    // ==========================================
+    // BỘ PHÁT SINH FILE VECTOR SVG TOÀN DIỆN
+    // ==========================================
+    async function generateCurrentSVG() {
+      const W = previewCanvas.width;
+      const H = previewCanvas.height;
+
+      // Ensure canvas has rendered so image rendered bounds and layout are accurate
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = W;
+      tempCanvas.height = H;
+      const tempCtx = tempCanvas.getContext('2d');
+      await renderCanvas(tempCtx, true);
+
+      let svgParts = [];
+      svgParts.push(`<?xml version="1.0" encoding="UTF-8"?>`);
+      svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`);
+      
+      // Inject Web Fonts
+      svgParts.push(`  <defs>`);
+      svgParts.push(`    <style type="text/css">`);
+      svgParts.push(`      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&amp;family=Montserrat:wght@700;800;900&amp;display=swap');`);
+      svgParts.push(`      text { font-family: 'Plus Jakarta Sans', sans-serif; }`);
+      svgParts.push(`    </style>`);
+      svgParts.push(`  </defs>`);
+
+      // 1. Background Image as embedded raster
+      if (bgImage.complete && bgImage.naturalWidth > 0) {
+        const bgData = bgImage.src.startsWith('data:') ? bgImage.src : (function() {
+          const c = document.createElement('canvas');
+          c.width = W; c.height = H;
+          const cx = c.getContext('2d');
+          cx.drawImage(bgImage, 0, 0, W, H);
+          return c.toDataURL('image/jpeg', 0.95);
+        })();
+        svgParts.push(`  <image href="${bgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/>`);
+      } else {
+        svgParts.push(`  <rect x="0" y="0" width="${W}" height="${H}" fill="#E9D5FF"/>`);
+      }
+
+      // Current row data
+      const row = excelRows[currentIndex] || getDemoRow();
+      function getVal(keys) {
+        for (const k of keys) {
+          const normK = k.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          for (const rowK of Object.keys(row)) {
+            const normRowK = rowK.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (normRowK === normK || normRowK.includes(normK)) return row[rowK];
+          }
+        }
+        return '';
+      }
+
+      function getExtractedGifts() {
+        const gifts = [];
+        const multiLineNames = getVal(['Tên quà tặng + khối lượng', 'Ten qua tang + khoi luong', 'Tên quà tặng', 'Quà tặng kèm']);
+        const multiLineSkus = getVal(['SKU quà tặng', 'SKU QUÀ', 'SKU qua']);
+
+        if (multiLineNames && String(multiLineNames).includes('\n')) {
+          const nameLines = String(multiLineNames).split('\n').map(s => s.trim()).filter(Boolean);
+          const skuLines = String(multiLineSkus || '').split('\n').map(s => s.trim()).filter(Boolean);
+          nameLines.forEach((fullName, idx) => {
+            let name = fullName;
+            let spec = '';
+            const matchSpec = fullName.match(/(?:chai|tuýp|sample|hộp|gói)?\s*(\d+(?:\.\d+)?\s*(?:ml|g|gam|miếng|viên))\b/i);
+            if (matchSpec) {
+              spec = matchSpec[1].toUpperCase();
+              name = fullName.replace(matchSpec[0], '').trim();
+            }
+            gifts.push({ name: name || fullName, spec: spec, sku: skuLines[idx] || '' });
+          });
+        } else if (multiLineNames) {
+          gifts.push({ name: String(multiLineNames).trim(), spec: '', sku: String(multiLineSkus || '').trim() });
+        }
+        if (gifts.length === 0) {
+          for (let g = 1; g <= 4; g++) {
+            const gName = getVal([`Tên quà ${g}`, `Ten qua ${g}`, `Quà tặng ${g}`, `Tên quà tặng ${g}`, `Tên SP quà ${g}`]);
+            const gSpec = getVal([`Quy cách quà ${g}`, `Quy cach qua ${g}`, `Dung tích quà ${g}`, `Khối lượng quà ${g}`]);
+            const gSku = getVal([`Ảnh quà ${g}`, `Anh qua ${g}`, `SKU quà ${g}`, `Mã quà ${g}`, `Hình quà ${g}`, `SKU QUÀ ${g}`, `Hình quà tặng ${g}`]);
+            if (gName || gSku || gSpec) gifts.push({ name: gName, spec: gSpec, sku: gSku });
+          }
+        }
+        return gifts;
+      }
+      const giftsList = getExtractedGifts();
+
+      // 2. Draw Image Elements in SVG
+      let mainProdRenderedBounds = null;
+      const giftRenderedBounds = {};
+
+      for (const [key, item] of Object.entries(layout)) {
+        if (item.visible === false || item.type !== 'image') continue;
+
+        let imgFile = '';
+        if (key === 'mainProdImg') {
+          imgFile = getVal(['Ảnh sản phẩm', 'SKU sản phẩm', 'SKU SP', 'SKU', 'Mã sản phẩm', 'Hinh SP']);
+        } else if (key === 'gift1Img') {
+          imgFile = giftsList[0]?.sku || getVal(['Ảnh quà 1', 'SKU quà 1']);
+        } else if (key === 'gift2Img') {
+          imgFile = giftsList[1]?.sku || getVal(['Ảnh quà 2', 'SKU quà 2']);
+        } else if (key === 'gift3Img') {
+          imgFile = giftsList[2]?.sku || getVal(['Ảnh quà 3', 'SKU quà 3']);
+        } else if (key === 'gift4Img') {
+          imgFile = giftsList[3]?.sku || getVal(['Ảnh quà 4', 'SKU quà 4']);
+        }
+
+        let loadedImg = await getImageElement(imgFile, key);
+        if (loadedImg) {
+          if (document.getElementById('autoRemoveWhiteBg')?.checked) {
+            const tol = Number(document.getElementById('whiteBgTolerance')?.value) || 235;
+            loadedImg = removeWhiteBackground(loadedImg, tol);
+          }
+
+          // Compute exact aspect fit coordinates
+          const imgAspect = loadedImg.width / loadedImg.height;
+          const boxAspect = item.w / item.h;
+          let drawW, drawH, drawX, drawY;
+
+          if (imgAspect > boxAspect) {
+            drawW = item.w;
+            drawH = item.w / imgAspect;
+            drawX = item.x;
+            drawY = item.y + (item.h - drawH);
+          } else {
+            drawH = item.h;
+            drawW = item.h * imgAspect;
+            if (drawW > item.w) {
+              drawW = item.w;
+              drawH = item.w / imgAspect;
+            }
+            drawX = item.x + (item.w - drawW) / 2;
+            drawY = item.y + (item.h - drawH);
+          }
+
+          const drawnBounds = { x: drawX, y: drawY, w: drawW, h: drawH, bottomY: drawY + drawH, topY: drawY, centerX: drawX + drawW / 2 };
+          if (key === 'mainProdImg') mainProdRenderedBounds = drawnBounds;
+          else if (key.startsWith('gift') && key.endsWith('Img')) {
+            giftRenderedBounds[key.replace('gift', '').replace('Img', '')] = drawnBounds;
+          }
+
+          // Get image data URL
+          let imgDataUrl = '';
+          if (loadedImg instanceof HTMLCanvasElement) {
+            imgDataUrl = loadedImg.toDataURL('image/png');
+          } else if (loadedImg.src && loadedImg.src.startsWith('data:')) {
+            imgDataUrl = loadedImg.src;
+          } else {
+            const tempC = document.createElement('canvas');
+            tempC.width = loadedImg.naturalWidth || loadedImg.width;
+            tempC.height = loadedImg.naturalHeight || loadedImg.height;
+            const tempX = tempC.getContext('2d');
+            tempX.drawImage(loadedImg, 0, 0);
+            imgDataUrl = tempC.toDataURL('image/png');
+          }
+
+          svgParts.push(`  <image href="${imgDataUrl}" x="${Math.round(drawX)}" y="${Math.round(drawY)}" width="${Math.round(drawW)}" height="${Math.round(drawH)}" preserveAspectRatio="none"/>`);
+        }
+      }
+
+      // 3. Draw All Text Elements as pure vector <text>
+      for (const [key, item] of Object.entries(layout)) {
+        if (item.visible === false || item.type !== 'text') continue;
+
+        let textVal = '';
+        if (key === 'mainProdName') textVal = getVal(['Tên sản phẩm', 'Ten san pham', 'Tên SP', 'Ten SP']);
+        else if (key === 'mainProdSpec') textVal = getVal(['Khối lượng sản phẩm', 'Quy cách sản phẩm', 'Dung tích', 'Quy cách SP']);
+        else if (key === 'giftTotalBanner') textVal = formatVND(getVal(['Giá trị quà tặng kèm', 'tổng giá trị quà tặng', 'Tổng giá quà tặng', 'Tổng giá quà']));
+        else if (key === 'gift1Name') textVal = giftsList[0]?.name || getVal(['Tên quà 1', 'Ten qua 1']);
+        else if (key === 'gift1Spec') textVal = giftsList[0]?.spec || getVal(['Quy cách quà 1', 'Quy cach qua 1']);
+        else if (key === 'gift2Name') textVal = giftsList[1]?.name || getVal(['Tên quà 2', 'Ten qua 2']);
+        else if (key === 'gift2Spec') textVal = giftsList[1]?.spec || getVal(['Quy cách quà 2', 'Quy cach qua 2']);
+        else if (key === 'gift3Name') textVal = giftsList[2]?.name || getVal(['Tên quà 3', 'Ten qua 3']);
+        else if (key === 'gift3Spec') textVal = giftsList[2]?.spec || getVal(['Quy cách quà 3', 'Quy cach qua 3']);
+        else if (key === 'gift4Name') textVal = giftsList[3]?.name || getVal(['Tên quà 4', 'Ten qua 4']);
+        else if (key === 'gift4Spec') textVal = giftsList[3]?.spec || getVal(['Quy cách quà 4', 'Quy cach qua 4']);
+
+        if (!textVal) continue;
+
+        let renderItem = item;
+
+        // Auto attach main product spec
+        if (key === 'mainProdSpec' && mainProdRenderedBounds && document.getElementById('autoAttachSpec')?.checked) {
+          const gap = Number(document.getElementById('specGapInput')?.value) || 20;
+          renderItem = Object.assign({}, item, {
+            x: mainProdRenderedBounds.centerX,
+            y: Math.min(1010, mainProdRenderedBounds.bottomY + gap)
+          });
+        }
+
+        // Auto attach gifts text
+        if (document.getElementById('autoAttachGifts')?.checked) {
+          const giftMatch = key.match(/^gift(\d+)(Name|Spec)$/);
+          if (giftMatch) {
+            const gNum = giftMatch[1];
+            const gType = giftMatch[2];
+            const gBounds = giftRenderedBounds[gNum];
+            if (gBounds) {
+              const gap = Number(document.getElementById('giftTextGapInput')?.value) || 12;
+              const hasSpec = !!(giftsList[Number(gNum) - 1]?.spec || getVal([`Quy cách quà ${gNum}`, `Quy cach qua ${gNum}`]));
+              const specHeight = 16;
+              const nameText = giftsList[Number(gNum) - 1]?.name || getVal([`Tên quà ${gNum}`, `Ten qua ${gNum}`]) || '';
+              const nameInfo = calculateTextLines(tempCtx, nameText, layout[`gift${gNum}Name`] || item);
+
+              if (gType === 'Spec') {
+                renderItem = Object.assign({}, item, {
+                  x: gBounds.centerX,
+                  y: gBounds.topY - gap
+                });
+              } else if (gType === 'Name') {
+                const specOffset = hasSpec ? (specHeight + 4) : 0;
+                const bottomTargetY = gBounds.topY - gap - specOffset;
+                const startY = Math.max(440, bottomTargetY - nameInfo.totalHeight + (item.fontSize || 11));
+                renderItem = Object.assign({}, item, {
+                  x: gBounds.centerX,
+                  y: startY
+                });
+              }
+            }
+          }
+        }
+
+        const linesInfo = calculateTextLines(tempCtx, textVal, renderItem);
+        const fontFam = (renderItem.fontFamily || "'Plus Jakarta Sans', sans-serif").replace(/"/g, "'");
+        const fontSize = renderItem.fontSize || 20;
+        const fontWeight = renderItem.fontWeight || '700';
+        const color = renderItem.color || '#111827';
+        const anchor = renderItem.align === 'center' ? 'middle' : (renderItem.align === 'right' ? 'end' : 'start');
+
+        let curY = renderItem.y;
+        linesInfo.lines.forEach(lineStr => {
+          const safeText = lineStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          svgParts.push(`  <text x="${Math.round(renderItem.x)}" y="${Math.round(curY)}" font-size="${fontSize}" font-family="${fontFam}" font-weight="${fontWeight}" fill="${color}" text-anchor="${anchor}">${safeText}</text>`);
+          curY += linesInfo.lineHeight;
+        });
+      }
+
+      svgParts.push(`</svg>`);
+      return svgParts.join('\n');
+    }
 
     // Function to check missing images across all rows
     async function checkMissingImages() {
@@ -2192,26 +2484,39 @@
 
       const originalIndex = currentIndex;
 
+      const selectedFormat = document.querySelector('input[name="exportFormat"]:checked')?.value || 'jpg';
+
       for (let i = 0; i < excelRows.length; i++) {
         currentIndex = i;
-        progressText.textContent = `Đang xuất ảnh: ${i + 1}/${excelRows.length}`;
+        progressText.textContent = `Đang xuất ảnh: ${i + 1}/${excelRows.length} (${selectedFormat.toUpperCase()})`;
         const pct = Math.round(((i + 1) / excelRows.length) * 100);
         progressPercent.textContent = `${pct}%`;
         progressBar.style.width = `${pct}%`;
-
-        await renderCanvas(tempCtx, true);
-
-        const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.94);
-        const base64Data = dataUrl.split(',')[1];
 
         const row = excelRows[i];
         const code = row['Mã sản phẩm'] || `SP_${i + 1}`;
         const name = row['Tên sản phẩm'] || 'banner';
         const safeName = `${code}_${name}`.replace(/[^a-z0-9A-Z_À-ỹ]/g, '_').substring(0, 55);
         const orderNum = String(i + 1).padStart(2, '0');
-        const fileName = `${safeName}_${orderNum}.jpg`;
 
-        zip.file(fileName, base64Data, { base64: true });
+        if (selectedFormat === 'svg') {
+          const svgData = await generateCurrentSVG();
+          const fileName = `${safeName}_${orderNum}.svg`;
+          zip.file(fileName, svgData);
+        } else if (selectedFormat === 'png') {
+          await renderCanvas(tempCtx, true);
+          const dataUrl = tempCanvas.toDataURL('image/png');
+          const base64Data = dataUrl.split(',')[1];
+          const fileName = `${safeName}_${orderNum}.png`;
+          zip.file(fileName, base64Data, { base64: true });
+        } else {
+          // Default JPG
+          await renderCanvas(tempCtx, true);
+          const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.94);
+          const base64Data = dataUrl.split(',')[1];
+          const fileName = `${safeName}_${orderNum}.jpg`;
+          zip.file(fileName, base64Data, { base64: true });
+        }
       }
 
       currentIndex = originalIndex;
