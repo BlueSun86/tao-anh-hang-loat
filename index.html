@@ -639,12 +639,15 @@
 
       <!-- Modal Footer -->
       <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-        <div class="flex items-center space-x-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Tự động kích hoạt sau khi chuyển tiền (2 - 5s)</span>
+        <div class="flex items-center space-x-2">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span id="paymentStatusLiveText" class="font-medium text-slate-700">Đang tự động quét giao dịch Techcombank...</span>
         </div>
-        <button onclick="window.simulateDepositSuccess()" class="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline">
-          [Thử nghiệm: Giả lập Nạp Ngay]
+        <button onclick="window.simulateDepositSuccess()" class="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline" title="Bấm để mô phỏng trường hợp khách chuyển khoản thành công">
+          [Mô phỏng: Test Nạp Thử]
         </button>
       </div>
 
@@ -3060,22 +3063,49 @@
     const SEPAY_API_KEY = 'Z7Q9WLUC8LV1HUXXBNBZLVEO38U9XSDO6NGFG0F5RRSB6H0IODIVSTFNKZY1MWMR';
     let processedTxIds = JSON.parse(localStorage.getItem('processed_tx_ids') || '[]');
 
+    function playPaymentSuccessSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.12); // E5
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.24); // G5
+        osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.36); // C6
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.7);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.7);
+      } catch (e) {
+        // AudioContext not allowed or unsupported
+      }
+    }
+
     // Cơ chế lắng nghe thanh toán tự động qua SePay
     function startCheckingPayment() {
       if (checkPaymentInterval) clearInterval(checkPaymentInterval);
       
-      const targetContent = `NAP ${currentUserId}`.toUpperCase();
+      const userIdDigitsOrCode = currentUserId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const minAmount = selectedPlan.price;
+      const statusText = document.getElementById('paymentStatusLiveText');
 
       async function pollSepayTransactions() {
         try {
+          if (statusText) statusText.textContent = `Đang quét giao dịch Techcombank (${new Date().toLocaleTimeString('vi-VN')})...`;
+          
           const res = await fetch('https://my.sepay.vn/userapi/transactions/list?limit=20', {
             headers: {
               'Authorization': `Bearer ${SEPAY_API_KEY}`,
               'Content-Type': 'application/json'
             }
           });
-          if (!res.ok) return;
+          if (!res.ok) {
+            if (statusText) statusText.textContent = 'Đang kết nối cổng SePay...';
+            return;
+          }
 
           const data = await res.json();
           if (data && data.transactions && Array.isArray(data.transactions)) {
@@ -3083,11 +3113,12 @@
               const txId = String(tx.id);
               if (processedTxIds.includes(txId)) continue;
 
-              const content = (tx.transaction_content || tx.description || '').toUpperCase();
+              const content = (tx.transaction_content || tx.description || '').toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
               const amountIn = parseFloat(tx.amount_in || tx.amount || 0);
 
-              // Kiểm tra xem giao dịch có khớp mã người dùng không
-              if (content.includes(targetContent) && amountIn >= minAmount) {
+              // Kiểm tra xem nội dung chuyển khoản có chứa mã User và số tiền >= gói chọn không
+              const isUserMatch = content.includes(userIdDigitsOrCode) || content.includes(currentUserId.toUpperCase());
+              if (isUserMatch && amountIn >= minAmount) {
                 // Đánh dấu đã xử lý
                 processedTxIds.push(txId);
                 localStorage.setItem('processed_tx_ids', JSON.stringify(processedTxIds));
@@ -3099,10 +3130,14 @@
 
                 if (checkPaymentInterval) clearInterval(checkPaymentInterval);
 
+                // Phát âm thanh Ting Ting
+                playPaymentSuccessSound();
+
                 if (paymentSuccessBox) {
                   paymentSuccessCredits.textContent = `+${addedCredits} ⭐`;
                   paymentSuccessBox.classList.remove('hidden');
                 }
+                if (statusText) statusText.textContent = '✅ Đã nhận được tiền thành công!';
 
                 // Tự động đóng modal sau 3 giây
                 setTimeout(() => {
@@ -3117,9 +3152,9 @@
         }
       }
 
-      // Kiểm tra ngay lập tức và sau đó mỗi 4 giây
+      // Kiểm tra ngay lập tức và sau đó mỗi 3 giây
       pollSepayTransactions();
-      checkPaymentInterval = setInterval(pollSepayTransactions, 4000);
+      checkPaymentInterval = setInterval(pollSepayTransactions, 3000);
     }
 
     // Hỗ trợ kiểm thử hoặc test nạp thành công ngay trên modal
