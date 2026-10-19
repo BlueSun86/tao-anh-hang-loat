@@ -11,6 +11,7 @@
   <script src="lucide.js"></script>
   <script src="bg_data.js"></script>
   <script src="embedded_images.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Montserrat:wght@700;800;900&display=swap');
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -47,6 +48,25 @@
             <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 fill-white"></i>
             Nạp Lượt
           </button>
+        </div>
+
+        <!-- User Authentication Button / Profile Badge -->
+        <div id="authContainer" class="flex items-center">
+          <button id="loginGoogleBtn" onclick="if(window.handleGoogleLogin) window.handleGoogleLogin();" class="inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 shadow-xs transition cursor-pointer bg-white">
+            <svg class="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Đăng nhập Google</span>
+          </button>
+          
+          <div id="userProfileBadge" class="hidden flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl px-2.5 py-1 transition cursor-pointer" title="Bấm để đăng xuất">
+            <img id="userAvatarImg" src="" alt="Avatar" class="w-5 h-5 rounded-full object-cover border border-purple-400">
+            <span id="userEmailSpan" class="text-xs font-semibold text-slate-800 max-w-[120px] truncate">user@gmail.com</span>
+            <button onclick="if(window.handleLogout) window.handleLogout();" class="text-slate-400 hover:text-red-500 text-xs ml-1 font-bold" title="Đăng xuất">✕</button>
+          </div>
         </div>
 
         <button id="downloadSampleExcelBtn" class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition">
@@ -2903,11 +2923,110 @@
       ]
     };
 
-    // User ID & Credits in LocalStorage (chuẩn bị kết nối Supabase)
+    // =========================================================================
+    // SUPABASE & GOOGLE AUTHENTICATION INTEGRATION
+    // =========================================================================
+    const SUPABASE_CONFIG = {
+      url: window.SUPABASE_URL || localStorage.getItem('supabase_url') || '',
+      anonKey: window.SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || ''
+    };
+
+    let supabaseClient = null;
+    if (typeof supabase !== 'undefined' && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey) {
+      try {
+        supabaseClient = supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+      } catch (err) {
+        console.warn('Supabase init error:', err);
+      }
+    }
+
+    let currentUser = null;
     let currentUserId = localStorage.getItem('user_id');
     if (!currentUserId) {
       currentUserId = 'user_' + Math.random().toString(36).substring(2, 7).toUpperCase();
       localStorage.setItem('user_id', currentUserId);
+    }
+
+    // Auth UI elements
+    const loginGoogleBtn = document.getElementById('loginGoogleBtn');
+    const userProfileBadge = document.getElementById('userProfileBadge');
+    const userAvatarImg = document.getElementById('userAvatarImg');
+    const userEmailSpan = document.getElementById('userEmailSpan');
+
+    function updateAuthUI(user) {
+      currentUser = user;
+      if (user && user.email) {
+        if (loginGoogleBtn) loginGoogleBtn.classList.add('hidden');
+        if (userProfileBadge) {
+          userProfileBadge.classList.remove('hidden');
+          userEmailSpan.textContent = user.user_metadata?.full_name || user.email.split('@')[0];
+          userAvatarImg.src = user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email)}&background=7C3AED&color=fff`;
+        }
+        currentUserId = 'user_' + user.id.substring(0, 6).toUpperCase();
+        localStorage.setItem('user_id', currentUserId);
+      } else {
+        if (loginGoogleBtn) loginGoogleBtn.classList.remove('hidden');
+        if (userProfileBadge) userProfileBadge.classList.add('hidden');
+      }
+    }
+
+    // Google Login Handler
+    window.handleGoogleLogin = async function() {
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin + window.location.pathname
+            }
+          });
+          if (error) throw error;
+        } catch (e) {
+          alert('Lỗi đăng nhập Google: ' + e.message);
+        }
+      } else {
+        // Mock prompt to configure Supabase or use instant Demo login
+        const email = prompt('Nhập địa chỉ Gmail của bạn để liên kết ví lượt xuất:', 'shopdecorte@gmail.com');
+        if (email && email.includes('@')) {
+          const fakeUser = {
+            id: Math.random().toString(36).substring(2, 8),
+            email: email,
+            user_metadata: { full_name: email.split('@')[0] }
+          };
+          localStorage.setItem('saved_user_profile', JSON.stringify(fakeUser));
+          updateAuthUI(fakeUser);
+          alert(`Đã liên kết ví lượt với Gmail: ${email}`);
+        }
+      }
+    };
+
+    // Logout Handler
+    window.handleLogout = async function(e) {
+      if (e) e.stopPropagation();
+      if (confirm('Bạn có chắc muốn đăng xuất?')) {
+        if (supabaseClient) {
+          await supabaseClient.auth.signOut();
+        }
+        localStorage.removeItem('saved_user_profile');
+        updateAuthUI(null);
+      }
+    };
+
+    // Check saved session on load
+    try {
+      const savedProf = localStorage.getItem('saved_user_profile');
+      if (savedProf) {
+        updateAuthUI(JSON.parse(savedProf));
+      } else if (supabaseClient) {
+        supabaseClient.auth.getUser().then(({ data: { user } }) => {
+          if (user) updateAuthUI(user);
+        });
+        supabaseClient.auth.onAuthStateChange((_event, session) => {
+          updateAuthUI(session?.user || null);
+        });
+      }
+    } catch (e) {
+      console.warn('Auth check error:', e);
     }
 
     let userCredits = parseInt(localStorage.getItem('user_credits') || '10', 10);
