@@ -43,7 +43,7 @@
             <span class="text-xs font-semibold text-purple-900">Ví lượt:</span>
             <span id="userCreditDisplay" class="text-xs font-extrabold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200">10 ⭐</span>
           </div>
-          <button id="openRechargeModalBtn" class="inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs transition">
+          <button id="openRechargeModalBtn" onclick="if(window.openRechargeModal) window.openRechargeModal();" class="inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs transition cursor-pointer">
             <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 fill-white"></i>
             Nạp Lượt
           </button>
@@ -484,6 +484,173 @@
     </div>
 
   </main>
+
+  <!-- Modal Cảnh Báo Thiếu Ảnh Trước Khi Xuất ZIP -->
+  <div id="missingImagesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
+      <div class="bg-amber-500 text-white px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="alert-triangle" class="w-6 h-6 text-white"></i>
+          <h3 class="font-bold text-base">Cảnh báo: Phát hiện sản phẩm thiếu ảnh!</h3>
+        </div>
+        <button id="closeMissingModalBtn" class="text-white/80 hover:text-white text-lg font-bold">✕</button>
+      </div>
+
+      <div class="p-5 flex-1 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Hệ thống phát hiện có <strong id="missingModalCount" class="text-amber-600 font-bold">0</strong> sản phẩm trong file Excel chưa khớp được ảnh (ảnh sản phẩm chính hoặc quà tặng). Nếu xuất ảnh ngay, các vị trí này sẽ bị để trống.
+        </p>
+
+        <div class="border border-slate-200 rounded-xl overflow-hidden text-xs">
+          <div class="bg-slate-100 font-semibold text-slate-700 px-3 py-2 flex justify-between">
+            <span>Dòng / Sản phẩm</span>
+            <span>Mục thiếu ảnh</span>
+          </div>
+          <div id="missingModalList" class="divide-y divide-slate-100 max-h-52 overflow-y-auto">
+            <!-- Dynamic Items -->
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-start space-x-2">
+          <i data-lucide="info" class="w-4 h-4 text-blue-600 mt-0.5 shrink-0"></i>
+          <span><strong>Mẹo:</strong> Bạn có thể bấm <strong>"Dừng lại để nạp thêm ảnh"</strong>, hoặc chọn <strong>"Vẫn xuất tất cả"</strong> nếu các quà tặng đó không cần hiển thị hình.</span>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex items-center justify-end space-x-3">
+        <button id="cancelExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition">
+          Dừng lại để nạp thêm ảnh
+        </button>
+        <button id="continueExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md shadow-amber-200 transition">
+          Vẫn tiếp tục xuất ZIP
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nạp Lượt Qua VietQR Techcombank -->
+  <div id="rechargeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+            <i data-lucide="zap" class="w-5 h-5 fill-amber-300 text-amber-300"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Nạp Lượt Xuất Banner (VietQR)</h3>
+            <p class="text-[11px] text-purple-200">Quét mã chuyển khoản tự động - Nhận lượt tức thì</p>
+          </div>
+        </div>
+        <button id="closeRechargeModalBtn" class="text-white/80 hover:text-white text-xl font-bold p-1">✕</button>
+      </div>
+
+      <!-- Warning Box if triggered by not enough credits -->
+      <div id="rechargeWarningBox" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3 text-xs text-amber-900 flex items-center space-x-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0"></i>
+        <span id="rechargeWarningText">Số dư lượt xuất của bạn không đủ để thực hiện thao tác.</span>
+      </div>
+
+      <!-- Payment Success Alert -->
+      <div id="paymentSuccessBox" class="hidden bg-emerald-500 text-white px-6 py-3 text-xs font-bold flex items-center justify-between animate-bounce">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+          <span>Thanh toán thành công! Bạn đã được cộng thêm <strong id="paymentSuccessCredits" class="underline">+0 ⭐</strong></span>
+        </div>
+        <span class="text-[11px] bg-white/20 px-2 py-0.5 rounded">Đang cập nhật...</span>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 overflow-y-auto max-h-[75vh] custom-scrollbar">
+        
+        <!-- Left: Plan Selection (6 Cols) -->
+        <div class="md:col-span-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">1. Chọn gói lượt xuất:</label>
+            <div id="plansContainer" class="grid grid-cols-1 gap-2.5">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 space-y-2">
+            <div class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+              <span>Cam kết dịch vụ:</span>
+            </div>
+            <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-500">
+              <li>Lượt xuất không có thời hạn sử dụng.</li>
+              <li>Xuất ảnh HD sắc nét, đầy đủ định dạng SVG/PNG/JPG.</li>
+              <li>Hỗ trợ kỹ thuật 24/7 khi gặp sự cố.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Right: VietQR Code (6 Cols) -->
+        <div class="md:col-span-6 flex flex-col items-center justify-center bg-slate-50/80 border border-slate-200 rounded-2xl p-4 text-center relative">
+          <div class="text-xs font-bold text-slate-700 mb-2 flex items-center space-x-1">
+            <span>2. Quét mã VietQR (Techcombank)</span>
+          </div>
+
+          <!-- QR Container -->
+          <div class="relative bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 w-52 h-52 flex items-center justify-center">
+            <div id="qrLoadingSpinner" class="absolute inset-0 flex items-center justify-center bg-white/90 rounded-2xl z-10">
+              <i data-lucide="loader-2" class="w-7 h-7 text-purple-600 animate-spin"></i>
+            </div>
+            <img id="vietQrImg" src="" alt="Mã VietQR" class="w-full h-full object-contain rounded-xl transition duration-300">
+          </div>
+
+          <!-- Bank Account Info -->
+          <div class="w-full mt-3 space-y-1.5 text-xs text-left bg-white p-3 rounded-xl border border-slate-200">
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Ngân hàng:</span>
+              <span class="font-bold text-slate-800">Techcombank</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Chủ TK:</span>
+              <span class="font-bold text-slate-800">NGUYEN VAN THU</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Số TK:</span>
+              <span class="font-mono font-bold text-purple-700">19024783001011</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
+              <span class="text-slate-500">Số tiền:</span>
+              <div class="flex items-center space-x-1">
+                <span id="qrAmountText" class="font-bold text-slate-900 text-xs">69.000 đ</span>
+                <button id="copyAmountBtn" class="text-[10px] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-slate-600 transition font-medium">Sao chép</button>
+              </div>
+            </div>
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-500">Nội dung CK:</span>
+              <div class="flex items-center space-x-1">
+                <span id="qrTransferContent" class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">NAP ...</span>
+                <button id="copyContentBtn" class="text-[10px] bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded text-purple-700 transition font-medium">Sao chép</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2 text-[10px] text-slate-400">
+            Mở bất kỳ App Ngân hàng hoặc MoMo để quét mã
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div class="flex items-center space-x-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Tự động kích hoạt sau khi chuyển tiền (2 - 5s)</span>
+        </div>
+        <button onclick="window.simulateDepositSuccess()" class="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline">
+          [Thử nghiệm: Giả lập Nạp Ngay]
+        </button>
+      </div>
+
+    </div>
+  </div>
+
 
   <script>
     lucide.createIcons();
@@ -2836,7 +3003,8 @@
     }
 
     function openRechargeModal(required = null, actionName = null) {
-      if (rechargeModal) {
+      const modal = document.getElementById('rechargeModal');
+      if (modal) {
         if (paymentSuccessBox) paymentSuccessBox.classList.add('hidden');
         if (required && actionName) {
           rechargeWarningBox.classList.remove('hidden');
@@ -2847,20 +3015,23 @@
 
         renderPricingPlans();
         generateVietQrCode();
-        rechargeModal.classList.remove('hidden');
+        modal.classList.remove('hidden');
         lucide.createIcons();
 
         // Giả lập lắng nghe kiểm tra giao dịch tự động
         startCheckingPayment();
       }
     }
+    window.openRechargeModal = openRechargeModal;
 
     function closeRechargeModal() {
-      if (rechargeModal) {
-        rechargeModal.classList.add('hidden');
+      const modal = document.getElementById('rechargeModal');
+      if (modal) {
+        modal.classList.add('hidden');
         if (checkPaymentInterval) clearInterval(checkPaymentInterval);
       }
     }
+    window.closeRechargeModal = closeRechargeModal;
 
     if (openRechargeModalBtn) {
       openRechargeModalBtn.addEventListener('click', () => openRechargeModal());
@@ -2968,172 +3139,6 @@
     // Initial setup
     updateInspector();
   </script>
-
-  <!-- Modal Cảnh Báo Thiếu Ảnh Trước Khi Xuất ZIP -->
-  <div id="missingImagesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
-      <div class="bg-amber-500 text-white px-5 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <i data-lucide="alert-triangle" class="w-6 h-6 text-white"></i>
-          <h3 class="font-bold text-base">Cảnh báo: Phát hiện sản phẩm thiếu ảnh!</h3>
-        </div>
-        <button id="closeMissingModalBtn" class="text-white/80 hover:text-white text-lg font-bold">✕</button>
-      </div>
-
-      <div class="p-5 flex-1 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-3">
-        <p class="text-xs text-slate-600 leading-relaxed">
-          Hệ thống phát hiện có <strong id="missingModalCount" class="text-amber-600 font-bold">0</strong> sản phẩm trong file Excel chưa khớp được ảnh (ảnh sản phẩm chính hoặc quà tặng). Nếu xuất ảnh ngay, các vị trí này sẽ bị để trống.
-        </p>
-
-        <div class="border border-slate-200 rounded-xl overflow-hidden text-xs">
-          <div class="bg-slate-100 font-semibold text-slate-700 px-3 py-2 flex justify-between">
-            <span>Dòng / Sản phẩm</span>
-            <span>Mục thiếu ảnh</span>
-          </div>
-          <div id="missingModalList" class="divide-y divide-slate-100 max-h-52 overflow-y-auto">
-            <!-- Dynamic Items -->
-          </div>
-        </div>
-
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-start space-x-2">
-          <i data-lucide="info" class="w-4 h-4 text-blue-600 mt-0.5 shrink-0"></i>
-          <span><strong>Mẹo:</strong> Bạn có thể bấm <strong>"Dừng lại để nạp thêm ảnh"</strong>, hoặc chọn <strong>"Vẫn xuất tất cả"</strong> nếu các quà tặng đó không cần hiển thị hình.</span>
-        </div>
-      </div>
-
-      <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex items-center justify-end space-x-3">
-        <button id="cancelExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition">
-          Dừng lại để nạp thêm ảnh
-        </button>
-        <button id="continueExportMissingBtn" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md shadow-amber-200 transition">
-          Vẫn tiếp tục xuất ZIP
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Nạp Lượt Qua VietQR Techcombank -->
-  <div id="rechargeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col animate-in fade-in duration-200">
-      
-      <!-- Modal Header -->
-      <div class="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-          <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
-            <i data-lucide="zap" class="w-5 h-5 fill-amber-300 text-amber-300"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-base">Nạp Lượt Xuất Banner (VietQR)</h3>
-            <p class="text-[11px] text-purple-200">Quét mã chuyển khoản tự động - Nhận lượt tức thì</p>
-          </div>
-        </div>
-        <button id="closeRechargeModalBtn" class="text-white/80 hover:text-white text-xl font-bold p-1">✕</button>
-      </div>
-
-      <!-- Warning Box if triggered by not enough credits -->
-      <div id="rechargeWarningBox" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3 text-xs text-amber-900 flex items-center space-x-2">
-        <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0"></i>
-        <span id="rechargeWarningText">Số dư lượt xuất của bạn không đủ để thực hiện thao tác.</span>
-      </div>
-
-      <!-- Payment Success Alert -->
-      <div id="paymentSuccessBox" class="hidden bg-emerald-500 text-white px-6 py-3 text-xs font-bold flex items-center justify-between animate-bounce">
-        <div class="flex items-center space-x-2">
-          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-          <span>Thanh toán thành công! Bạn đã được cộng thêm <strong id="paymentSuccessCredits" class="underline">+0 ⭐</strong></span>
-        </div>
-        <span class="text-[11px] bg-white/20 px-2 py-0.5 rounded">Đang cập nhật...</span>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 overflow-y-auto max-h-[75vh] custom-scrollbar">
-        
-        <!-- Left: Plan Selection (6 Cols) -->
-        <div class="md:col-span-6 space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">1. Chọn gói lượt xuất:</label>
-            <div id="plansContainer" class="grid grid-cols-1 gap-2.5">
-              <!-- Rendered via JS -->
-            </div>
-          </div>
-
-          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 space-y-2">
-            <div class="font-bold text-slate-800 flex items-center space-x-1.5">
-              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-              <span>Cam kết dịch vụ:</span>
-            </div>
-            <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-500">
-              <li>Lượt xuất không có thời hạn sử dụng.</li>
-              <li>Xuất ảnh HD sắc nét, đầy đủ định dạng SVG/PNG/JPG.</li>
-              <li>Hỗ trợ kỹ thuật 24/7 khi gặp sự cố.</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Right: VietQR Code (6 Cols) -->
-        <div class="md:col-span-6 flex flex-col items-center justify-center bg-slate-50/80 border border-slate-200 rounded-2xl p-4 text-center relative">
-          <div class="text-xs font-bold text-slate-700 mb-2 flex items-center space-x-1">
-            <span>2. Quét mã VietQR (Techcombank)</span>
-          </div>
-
-          <!-- QR Container -->
-          <div class="relative bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 w-52 h-52 flex items-center justify-center">
-            <div id="qrLoadingSpinner" class="absolute inset-0 flex items-center justify-center bg-white/90 rounded-2xl z-10">
-              <i data-lucide="loader-2" class="w-7 h-7 text-purple-600 animate-spin"></i>
-            </div>
-            <img id="vietQrImg" src="" alt="Mã VietQR" class="w-full h-full object-contain rounded-xl transition duration-300">
-          </div>
-
-          <!-- Bank Account Info -->
-          <div class="w-full mt-3 space-y-1.5 text-xs text-left bg-white p-3 rounded-xl border border-slate-200">
-            <div class="flex justify-between items-center text-[11px]">
-              <span class="text-slate-500">Ngân hàng:</span>
-              <span class="font-bold text-slate-800">Techcombank</span>
-            </div>
-            <div class="flex justify-between items-center text-[11px]">
-              <span class="text-slate-500">Chủ TK:</span>
-              <span class="font-bold text-slate-800">NGUYEN VAN THU</span>
-            </div>
-            <div class="flex justify-between items-center text-[11px]">
-              <span class="text-slate-500">Số TK:</span>
-              <span class="font-mono font-bold text-purple-700">19024783001011</span>
-            </div>
-            <div class="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
-              <span class="text-slate-500">Số tiền:</span>
-              <div class="flex items-center space-x-1">
-                <span id="qrAmountText" class="font-bold text-slate-900 text-xs">69.000 đ</span>
-                <button id="copyAmountBtn" class="text-[10px] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-slate-600 transition font-medium">Sao chép</button>
-              </div>
-            </div>
-            <div class="flex justify-between items-center text-[11px]">
-              <span class="text-slate-500">Nội dung CK:</span>
-              <div class="flex items-center space-x-1">
-                <span id="qrTransferContent" class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">NAP ...</span>
-                <button id="copyContentBtn" class="text-[10px] bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded text-purple-700 transition font-medium">Sao chép</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-2 text-[10px] text-slate-400">
-            Mở bất kỳ App Ngân hàng hoặc MoMo để quét mã
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-        <div class="flex items-center space-x-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Tự động kích hoạt sau khi chuyển tiền (2 - 5s)</span>
-        </div>
-        <button onclick="window.simulateDepositSuccess()" class="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline">
-          [Thử nghiệm: Giả lập Nạp Ngay]
-        </button>
-      </div>
-
-    </div>
-  </div>
 
 </body>
 </html>
