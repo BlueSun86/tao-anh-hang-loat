@@ -37,10 +37,17 @@
       </div>
 
       <div class="flex items-center space-x-2">
-        <!-- Open Beta Free Badge -->
-        <div class="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Open Beta: Miễn Phí 100%</span>
+        <!-- Credit Wallet Badge & Recharge Button -->
+        <div class="flex items-center bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5 space-x-2 shadow-xs mr-1">
+          <div class="flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-xs font-semibold text-purple-900">Xu dùng thử:</span>
+            <span id="userCreditDisplay" class="text-xs font-extrabold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200">15 ⭐</span>
+          </div>
+          <button id="openRechargeModalBtn" onclick="if(window.openRechargeModal) window.openRechargeModal();" class="inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs transition cursor-pointer">
+            <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 fill-white"></i>
+            Nạp Thêm
+          </button>
         </div>
 
         <button id="downloadSampleExcelBtn" class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition">
@@ -3003,7 +3010,9 @@
       console.warn('Auth check error:', e);
     }
 
-    let userCredits = parseInt(localStorage.getItem('user_credits') || '10', 10);
+    // Khởi tạo xu dùng thử mặc định (15 xu test cho mỗi người dùng mới)
+    const DEFAULT_TRIAL_CREDITS = 15;
+    let userCredits = parseInt(localStorage.getItem('user_credits') || String(DEFAULT_TRIAL_CREDITS), 10);
     const userCreditDisplay = document.getElementById('userCreditDisplay');
 
     function updateUserCreditUI() {
@@ -3014,20 +3023,14 @@
     }
     updateUserCreditUI();
 
-    // OPEN BETA: Miễn phí toàn bộ lượt xuất
-    const IS_OPEN_BETA_FREE = true;
-
     function checkAndDeductCredits(requiredCredits, actionName = 'xuất ảnh') {
-      if (IS_OPEN_BETA_FREE) {
-        return true; // Cho phép tải và xuất ZIP không giới hạn, không trừ lượt, không hiện popup
-      }
       if (userCredits >= requiredCredits) {
         userCredits -= requiredCredits;
         updateUserCreditUI();
         return true;
       }
 
-      // Not enough credits -> Show Recharge Modal
+      // Hết xu dùng thử -> Bật modal nạp tiền
       openRechargeModal(requiredCredits, actionName);
       return false;
     }
